@@ -1,7 +1,7 @@
 from __future__ import annotations
 from dataclasses import dataclass
 import numpy as np
-
+from pytvc.data import rocketMotor
 
 def clamp(x, min_val, max_val):
     return max(min(x, max_val), min_val)
@@ -458,7 +458,7 @@ class Quat:
 
 class TVC:
 
-    def __init__(self, speed: float = 0.0, offset: Vec3 = Vec3(), throttleSpeed: float = 0.0, maxPosition: Vec3 = Vec3(), minPosition: Vec3 = Vec3(), minThrottle: float = 0.9, actuator_precision: float = 0.0, linkage_ratio: float = 0.0) -> None:
+    def __init__(self, name: str = "", speed: float = 0.0, offset: Vec3 = Vec3(), throttleSpeed: float = 0.0, maxPosition: Vec3 = Vec3(), minPosition: Vec3 = Vec3(), minThrottle: float = 0.9, actuator_precision: float = 0.0, linkage_ratio: float = 0.0, update_delay: float = 0.02, log_data: bool = True) -> None:
         """__init__ initializes the TVC object
 
         Args:
@@ -471,6 +471,9 @@ class TVC:
             actuator_precision (float, optional): precision of the servos, if set to zero it will be infinite. Defaults to 0.0.
             linkage_ratio (float, optional): ratio between servo movement and TVC movement, if set to zero will skip calculation. Defaults to 0.0.
         """
+
+        self.name: str = name
+
         self._rotation: Quat = Quat()
         self._rotationEulers: Vec3 = Vec3()
         self._throttle: float = 1.0
@@ -485,7 +488,23 @@ class TVC:
         self.throttleSpeed: float = throttleSpeed
         self.minThrottle: float = minThrottle
 
+        self.log_data: bool = log_data
+        self.update_delay = update_delay
+        self.last_update: float = 0.0
+
+        self.target_throttle: float = 1.0
+
         self._motors = {}
+        self._update_func = None
+
+    def update_func(self, func):
+        """update_func sets the update function for the TVC
+
+        Args:
+            func (function): function to set as update function
+        """
+        self._update_func = func
+        return func
 
     def add_motor(self, motor, name: str = "") -> None:
         """addMotor adds a motor to the TVC mount
@@ -530,6 +549,10 @@ class TVC:
         Args:
             dt (float): time step
         """
+
+        if self._update_func is not None:
+            self.set_position(self._update_func)
+
         error: Vec3 = self.targetEulers - self._rotationEulers
         error = error * (self.speed * dt)
         self._rotationEulers += error
@@ -542,7 +565,7 @@ class TVC:
         self._rotation = Quat().from_euler(self._rotationEulers + self.offset)
 
         throttle_error = self.target_throttle - self._throttle
-        throttle_error = throttle_error * self.throttle_speed * dt
+        throttle_error = throttle_error * self.throttleSpeed * dt
         self._throttle += throttle_error
 
         if self._throttle < self.minThrottle:
@@ -567,14 +590,78 @@ class TVC:
         return tmp_m, thrust
 
 
-class physicsBody:
+class parachute:
 
-    """physicsBody"""
+    def __init__(self, diameter: float = 1.0, cord_len: float = 1.0, drag_coeff: float = 1.75) -> None:
+        """initializes the parachute
+
+        Args:
+            diameter (float, optional): diameter of the parachute in meters. Defaults to 1.0.
+            cord_len (float, optional): length of the shock cord connecting to the rocket ( not implemented ). Defaults to 1.0.
+            drag_coeff (float, optional): drag coefficient of the parachute. Defaults to 1.75.
+
+        Returns:
+            _type_: _description_
+        """
+        self.drag_area: float = np.pi * (diameter*diameter) / 4.0
+        self.cord_len: float = cord_len
+        # average value for a parachute from nasa
+        self.drag_coefficient: float = drag_coeff
+
+        self._deploy_func = None
+
+        return None
+
+    def deploy_func(self, func):
+        """sets the function to call when the parachute is deployed
+
+        Args:
+            func (function): function to call when the parachute is deployed
+        """
+        self._deploy_func = func
+        return func
+
+    def _check(self, position: Vec3, velocity: Vec3) -> bool:
+        """checks if the parachute is deployed
+
+        Args:
+            position (Vec3): the position of the parachute
+            velocity (Vec3): the velocity of the parachute
+
+        Returns:
+            bool: True if the parachute is deployed, False otherwise
+        """
+        result = self._deploy_func(position, velocity)
+        if isinstance(result, bool):
+            return result
+        else:
+            raise TypeError("deploy_func must return a bool")
+
+    def calculate_forces(self, mass: float, velocity: Vec3, air_density: float = 1.225) -> Vec3:
+
+        # untested, probably broken
+
+        force_g = Vec3(-mass * 9.806, 0.0, 0.0)
+        force_d = -velocity.normalize() * (self.drag_coefficient/2.0 * air_density *
+                                           self.drag_area * velocity.length()**2)
+
+        net_force_dir: Vec3 = (force_d + force_g)
+        net_force_dir = net_force_dir.normalize()
+
+        force_dir_q = Quat(
+            1.0, 0.0, 0.0, 0.0).rotation_between_vectors(net_force_dir)
+
+        return force_dir_q.rotate(force_d)
+
+
+class physics_body:
+
+    """physics_body"""
 
     def __init__(self, position: Vec3 = Vec3(), velocity: Vec3 = Vec3(), rotation: Quat = Quat(), rotational_velocity: Vec3 = Vec3(),
                  mass: float = 1.0, moment_of_inertia: Vec3 = Vec3(1.0, 1.0, 1.0), ref_area: float = 1.0, drag_coefficient_forewards: float = 0.0,
                  drag_coefficient_sideways: float = 0.0, wind_speed: Vec3 = Vec3(), cp_location: Vec3 = Vec3(), friction_coeff: float = 0.0, use_aero: bool = False):
-        """initializes the physicsBody object
+        """initializes the physics_body object
 
         Args:
             position (Vec3, optional): position of the body. Defaults to Vec3.
@@ -751,41 +838,3 @@ class physicsBody:
         """clears the physics body of all forces and torques"""
         self.acceleration = Vec3(0.0, 0.0, 0.0)
         self.rotational_acceleration = Vec3(0.0, 0.0, 0.0)
-
-
-class parachute:
-
-    def __init__(self, diameter: float = 1.0, cord_len: float = 1.0, drag_coeff: float = 1.75) -> None:
-        """initializes the parachute
-
-        Args:
-            diameter (float, optional): diameter of the parachute in meters. Defaults to 1.0.
-            cord_len (float, optional): length of the shock cord connecting to the rocket ( not implemented ). Defaults to 1.0.
-            drag_coeff (float, optional): drag coefficient of the parachute. Defaults to 1.75.
-
-        Returns:
-            _type_: _description_
-        """
-        self.drag_area: float = np.pi * (diameter*diameter) / 4.0
-        self.cord_len: float = cord_len
-        # average value for a parachute from nasa
-        self.drag_coefficient: float = drag_coeff
-
-        return None
-
-    def calculate_forces(self, mass: float, velocity: Vec3, air_density: float = 1.225) -> Vec3:
-
-        # untested, probably broken
-
-        force_g = Vec3(-mass * 9.806, 0.0, 0.0)
-        force_d = -velocity.normalize() * (self.drag_coefficient/2.0 * air_density *
-                                           self.drag_area * velocity.length()**2)
-
-        net_force_dir: Vec3 = (force_d + force_g)
-        net_force_dir = net_force_dir.normalize()
-
-        force_dir_q = Quat(
-            1.0, 0.0, 0.0, 0.0).rotation_between_vectors(net_force_dir)
-
-        return force_dir_q.rotate(force_d)
-
