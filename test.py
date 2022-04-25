@@ -1,24 +1,15 @@
-def makeReg():
+import pytvc
+from pytvc.physics import *
+from pytvc.rocket import rocketBody
 
-    registry = {}
+rocket1: rocketBody = rocketBody(dry_mass=1.0, time_step=100)
 
-    def reg(func):
-        registry[func.__name__] = func
-        return func
+@rocket1.setup
+def setup():
+    print("setup")
 
-    reg.all = registry
-    return reg
+@rocket1.update
+def update():
+    print("update")
 
-r = makeReg()
-
-@r
-def test1():
-    print("test1")
-
-@r
-def test2():
-    print("test2")
-
-print(r.all)
-for i in r.all:
-    r.all[i]()
+rocket1.run()

@@ -17,6 +17,16 @@ class rocketBody:
 
         self.body: physicsBody = physicsBody()
 
+        self._function_registry = {}
+
+    def setup(self, func):
+        self._function_registry["setup"] = func
+        return func
+
+    def update(self, func):
+        self._function_registry["update"] = func
+        return func
+    
     def add_tvc_mount(self, tvc_mount: TVC, position: Vec3, name: str) -> None:
         """adds a TVC mount to the rocket
 
@@ -60,3 +70,12 @@ class rocketBody:
         # datalogging?
         
         self.body.clear()
+    
+    def run(self) -> None:
+        """run the simulation"""
+        if "setup" in self._function_registry:
+            self._function_registry["setup"]()
+        while True:
+            self.update()
+            if "update" in self._function_registry:
+                self._function_registry["update"]()
