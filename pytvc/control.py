@@ -1,3 +1,7 @@
+from pytvc.physics import Vec3
+import numpy as np
+
+
 
 class PID:
 
@@ -92,3 +96,32 @@ class PID:
         """
         return self.output
 
+class torque_PID(PID):
+
+    def __init__(self, Kp: float = 0.0, Ki: float = 0.0, Kd: float = 0.0, setpoint: float = 0.0, i_max: float = 0.0, inertia: float = 1.0, lever_arm: float = 1.0) -> None:
+        """__init__ initializes the PID controller
+
+        Args:
+            Kp (float, optional): the proportional gain of the controller. Defaults to 0.0.
+            Ki (float, optional): the integral gain of the controller. Defaults to 0.0.
+            Kd (float, optional): the derivative gain of the controller. Defaults to 0.0.
+            setpoint (float, optional): the setpoint of the controller. Defaults to 0.0.
+            i_max (float, optional): the maximum value for the integral component of the controller. Defaults to 0.0.
+            inertia (float, optional): the inertia to pass into the torque controller. Defaults to 1.0.
+            lever_arm (float, optional): the lever arm to pass into the torque controller. Defaults to 1.0.
+        """
+
+        super().__init__(Kp, Ki, Kd, setpoint, i_max)
+        self.inertia = inertia
+        self.lever_arm = lever_arm
+
+    def update(self, input: float, dt: float = 1.0, force: float = 1.0) -> None:
+        super().update(input, dt)
+        if force != 0.0:
+            calcval = super().getOutput() * self.inertia / force / self.lever_arm
+            if abs(calcval) > 1.0:
+                super().output = 0.0
+            else:
+                super().output = np.arcsin(calcval)
+        else:
+            super().output = 0.0
