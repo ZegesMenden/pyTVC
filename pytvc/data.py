@@ -1,14 +1,12 @@
 import matplotlib.pyplot as plt
 import mpl_toolkits.mplot3d.axes3d as p3
 import matplotlib.animation as animation
-
 import xml.etree.ElementTree as ET
-
 import numpy as np
 import os
 import csv
 
-from pytvc.physics import *
+# from pytvc.physics import Vec3, Quat
 
 class data_logger:
     def __init__(self):
@@ -286,6 +284,7 @@ class rocketMotor:
         """
         self._ignitionTime: float = ignitionTime
         self._timeStep: int = timeStep
+        self._data = []
         
         if filePath != "":
             
@@ -344,3 +343,5 @@ class rocketMotor:
         if time > self._ignitionTime and self._ignitionTime != -1.0:
             idx = int(time*self._timeStep)
             return self._data[idx][0], self._data[idx][1]*0.001
+        else:
+            return 0.0, self._data[0][1]*0.001
