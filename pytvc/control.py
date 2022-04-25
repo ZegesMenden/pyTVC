@@ -1,5 +1,3 @@
-import numpy as np
-from core.physics import vec3, quaternion
 
 class PID:
 
@@ -46,48 +44,48 @@ class PID:
         self.i = 0.0
         self.last_error = 0.0
     
-    def set_setpoint(self, setpoint: float) -> None:
-        """set_setpoint sets the setpoint of the PID controller
+    def setSetpoint(self, setpoint: float) -> None:
+        """setSetpoint sets the setpoint of the PID controller
 
         Args:
             setpoint (float): setpoint of the PID controller
         """
         self.setpoint = setpoint
     
-    def set_Kp(self, Kp: float) -> None:
-        """set_Kp sets the proportional gain of the PID controller
+    def setKp(self, Kp: float) -> None:
+        """setKp sets the proportional gain of the PID controller
 
         Args:
             Kp (float): proportional gain of the PID controller
         """
         self.Kp = Kp
     
-    def set_Ki(self, Ki: float) -> None:
-        """set_Ki sets the integral gain of the PID controller
+    def setKi(self, Ki: float) -> None:
+        """setKi sets the integral gain of the PID controller
 
         Args:
             Ki (float): integral gain of the PID controller
         """
         self.Ki = Ki
     
-    def set_Kd(self, Kd: float) -> None:
-        """set_Kd sets the derivative gain of the PID controller
+    def setKd(self, Kd: float) -> None:
+        """setKd sets the derivative gain of the PID controller
 
         Args:
             Kd (float): derivative gain of the PID controller
         """
         self.Kd = Kd
     
-    def set_i_max(self, i_max: float) -> None:
-        """set_i_max set the maximum integral value for the PID controller
+    def setImax(self, i_max: float) -> None:
+        """setImax set the maximum integral value for the PID controller
 
         Args:
             i_max (float): maximum value for the integral
         """
         self.i_max = i_max
     
-    def get_output(self) -> float:
-        """get_output returns the output of the PID controller
+    def getOutput(self) -> float:
+        """getOutput returns the output of the PID controller
 
         Returns:
             float: output of the PID controller

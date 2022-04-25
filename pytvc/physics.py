@@ -1,6 +1,10 @@
 from __future__ import annotations
 from dataclasses import dataclass
 import numpy as np
+import scipy as sp
+
+def clamp(x, min_val, max_val):
+    return max(min(x, max_val), min_val)
 
 @dataclass
 class vec3:
@@ -448,6 +452,75 @@ class quaternion:
                        1.0 - 2.0 * (self.y**2 + self.z**2))
 
         return vec3(x, y, z)
+
+class TVC:
+
+    def __init__(self, speed: float = 0.0, offset: vec3 = vec3, throttleSpeed: float = 0.0, maxPosition: vec3 = vec3, minPosition: vec3 = vec3, minThrottle: float = 0.9, actuator_precision: float = 0.0, linkage_ratio: float = 0.0) -> None:
+        """__init__ initializes the TVC object
+
+        Args:
+            speed (float, optional): speed of the servos. Defaults to 0.0.
+            offset (vec3, optional): offset of the TVC mount. Defaults to vec3.
+            throttleSpeed (float, optional): speed at which the throttling mechanism throttles. Defaults to 0.0.
+            maxPosition (vec3, optional): maximum positive position of the mount. Defaults to vec3.
+            minPosition (vec3, optional): maximum negative position of the mount. Defaults to vec3.
+            minThrottle (float, optional): minimum throttle value. Defaults to 0.9.
+            actuator_precision (float, optional): precision of the servos, if set to zero it will be infinite. Defaults to 0.0.
+            linkage_ratio (float, optional): ratio between servo movement and TVC movement, if set to zero will skip calculation. Defaults to 0.0.
+        """
+        self._rotation: quaternion = quaternion()
+        self._rotation_eulers: vec3 = vec3()
+        self._throttle: float = 1.0
+
+        self.offset: vec3 = offset
+        self.maxPosition: vec3 = maxPosition
+        self.minPosition: vec3 = minPosition
+        self.targetEulers: vec3 = vec3()
+        self.speed: float = speed
+        self.offset: vec3 = vec3()
+        self.targetThrottle: float = 1.0
+        self.throttleSpeed: float = throttleSpeed
+        self.minThrottle: float = minThrottle
+
+    def throttle(self, target_throttle) -> None:
+        self.target_throttle = target_throttle
+    
+    def set_position(self, target_position) -> None:
+        if isinstance(target_position, quaternion):
+            self.target_eulers = target_position.to_euler()
+        elif isinstance(target_position, vec3):
+            self.target_eulers = target_position
+        else:
+            raise NotImplemented
+    
+    def update(self, dt: float):
+        """update updates the TVC mount and throttling mechanism
+
+        Args:
+            dt (float): time step
+        """
+        error: vec3 = self.target_eulers - self._rotation_eulers
+        error = error * (self.speed * dt)
+        self._rotation_eulers += error
+        
+        self._rotation_eulers.y = clamp(self._rotation_eulers.y, self.minPosition.y, self.maxPosition.y)
+        self._rotation_eulers.z = clamp(self._rotation_eulers.z, self.minPosition.z, self.maxPosition.z)
+
+        self._rotation = quaternion().from_euler(self._rotation_eulers + self.offset)
+
+        throttle_error = self.target_throttle - self._throttle
+        throttle_error = throttle_error * self.throttle_speed * dt
+        self._throttle += throttle_error
+
+        if self._throttle < self.minThrottle:
+            self._throttle = self.minThrottle
+        if self._throttle > 1.0:
+            self._throttle = 1.0
+
+    def calculate_forces(self, thrust: float) -> vec3:
+        force: vec3 = self._rotation.rotate(vec3(thrust * self._throttle, 0.0, 0.0))
+        return force
+        
 
 @dataclass
 class physics_body:

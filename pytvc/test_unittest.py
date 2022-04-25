@@ -1,4 +1,4 @@
-from core.physics import *
+from pytvc.physics import *
 import numpy as np
 import unittest
 
