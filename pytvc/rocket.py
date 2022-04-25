@@ -47,7 +47,7 @@ class rocketBody:
             else:
                 raise Exception("TVC mount must be of type TVC")
 
-    def update(self) -> None:
+    def _update(self) -> None:
 
         """update the body's simulation by one time step"""
 
@@ -76,6 +76,6 @@ class rocketBody:
         if "setup" in self._function_registry:
             self._function_registry["setup"]()
         while True:
-            self.update()
+            self._update()
             if "update" in self._function_registry:
                 self._function_registry["update"]()
