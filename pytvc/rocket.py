@@ -39,11 +39,24 @@ class rocketBody:
 
     def update(self) -> None:
 
+        """update the body's simulation by one time step"""
+
         self.time += self.time_step
         
-        tmp_m, tmp_t = 0.0, Vec3
+        tmp_m = 0.0
+        for mount in self._tvc_mounts:
+            tm, f = self._tvc_mounts[mount]["mount"].update(self.time)
+            tmp_m += tm*0.001
+            self.motor_thrust += f.length()
+            self.body.apply_local_point_force(f, self._tvc_mounts[mount]["position"])
 
+        self.body.mass = self.dry_mass + tmp_m
+        self.engine_mass = tmp_m
 
-
+        # user code?
+        
         self.body.update(self.time_step)
         
+        # datalogging?
+        
+        self.body.clear()
