@@ -2,7 +2,6 @@
 import numpy as np
 
 # internal libraries
-# import data as _data
 import pytvc.control
 import pytvc.simulation
 import pytvc.data
