@@ -1,11 +1,17 @@
-from os import times
 from pytvc.physics import *
 from pytvc.data import rocketMotor
 
-class rocketBody:
+class rocket:
 
-    def __init__(self, dry_mass: float = 0.0, time_step: float = 0.0) -> None:
+    def __init__(self, dry_mass: float = 1.0, time_step: float = 0.001, name: str = "") -> None:
+        """initializes the rocket
 
+        Args:
+            dry_mass (float, optional): mass of the rocket without any motors. Defaults to 1.0.
+            time_step (float, optional): time between steps in the simulation. Defaults to 0.001.
+            name (str, optional): the name of the rocket. Defaults to ""
+        """
+        self.name = name
         self.time = 0.0
         self.time_step = time_step
 
@@ -62,20 +68,49 @@ class rocketBody:
 
         self.body.mass = self.dry_mass + tmp_m
         self.engine_mass = tmp_m
-
-        # user code?
         
         self.body.update(self.time_step)
         
+        if "update" in self._function_registry:
+            self._function_registry["update"]()
+
         # datalogging?
         
         self.body.clear()
     
-    def run(self) -> None:
-        """run the simulation"""
+    def initialize(self) -> None:
         if "setup" in self._function_registry:
             self._function_registry["setup"]()
-        while True:
-            self._update()
-            if "update" in self._function_registry:
-                self._function_registry["update"]()
+
+class sim:
+
+    def __init__(self, time_step: float = 0.001, time_end: float = 60.0, rockets: dict = {}) -> None:
+
+        self.time: float = 0.0
+        self.time_step = time_step
+        self.time_end = time_end
+        self.nRockets = 0
+        self._rockets = {}
+
+        for r in rockets:
+            if isinstance(r, rocket):
+                if r.name == "":
+                    r.name = "rocket" + str(self.nRockets)
+                self._rockets[r.name] = r              
+                self.nRockets += 1
+            else:
+                raise TypeError("Rocket must be a rocket class")
+        return None
+
+    def add_rocket(self, r: rocket) -> None:
+        if isinstance(r, rocket):
+            if r.name == "":
+                r.name = "rocket" + str(self.nRockets)
+            self._rockets[r.name] = r              
+            self.nRockets += 1
+        else:
+            raise TypeError("Rocket must be a rocket class")
+
+    def run(self) -> None:
+
+        return None

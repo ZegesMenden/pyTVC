@@ -500,12 +500,14 @@ class TVC:
         """
         if isinstance(motor, rocketMotor):
             if name in self._motors:
-                raise ValueError("A motor with the name " + name + " already exists")
+                raise ValueError("A motor with the name " +
+                                 name + " already exists")
             else:
                 self._motors[name] = motor
         elif isinstance(motor, str):
             if name in self._motors:
-                raise ValueError("A motor with the name " + name + " already exists")
+                raise ValueError("A motor with the name " +
+                                 name + " already exists")
             else:
                 self._motors[name] = rocketMotor(motor, self.time_step)
         else:
@@ -547,8 +549,7 @@ class TVC:
             self._throttle = self.minThrottle
         if self._throttle > 1.0:
             self._throttle = 1.0
-        
-        
+
     def get_values(self, time: float) -> tuple[float, float]:
         """get values returns the a tuple of the current mass and thrust vector from the TVC mount
 
@@ -568,14 +569,13 @@ class TVC:
 
 class physicsBody:
 
-    """physicsBody""" 
+    """physicsBody"""
 
     def __init__(self, position: Vec3 = Vec3(), velocity: Vec3 = Vec3(), rotation: Quat = Quat(), rotational_velocity: Vec3 = Vec3(),
                  mass: float = 1.0, moment_of_inertia: Vec3 = Vec3(1.0, 1.0, 1.0), ref_area: float = 1.0, drag_coefficient_forewards: float = 0.0,
                  drag_coefficient_sideways: float = 0.0, wind_speed: Vec3 = Vec3(), cp_location: Vec3 = Vec3(), friction_coeff: float = 0.0, use_aero: bool = False):
-
         """initializes the physicsBody object
-        
+
         Args:
             position (Vec3, optional): position of the body. Defaults to Vec3.
             velocity (Vec3, optional): velocity of the body. Defaults to Vec3.
@@ -752,6 +752,7 @@ class physicsBody:
         self.acceleration = Vec3(0.0, 0.0, 0.0)
         self.rotational_acceleration = Vec3(0.0, 0.0, 0.0)
 
+
 class parachute:
 
     def __init__(self, diameter: float = 1.0, cord_len: float = 1.0, drag_coeff: float = 1.75) -> None:
@@ -765,7 +766,7 @@ class parachute:
         Returns:
             _type_: _description_
         """
-        self.drag_area: float = np.pi * (diameter*diameter) / 4.0 
+        self.drag_area: float = np.pi * (diameter*diameter) / 4.0
         self.cord_len: float = cord_len
         # average value for a parachute from nasa
         self.drag_coefficient: float = drag_coeff
@@ -777,11 +778,14 @@ class parachute:
         # untested, probably broken
 
         force_g = Vec3(-mass * 9.806, 0.0, 0.0)
-        force_d = -velocity.normalize() * ( self.drag_coefficient/2.0 * air_density * self.drag_area * velocity.length()**2 )
+        force_d = -velocity.normalize() * (self.drag_coefficient/2.0 * air_density *
+                                           self.drag_area * velocity.length()**2)
 
         net_force_dir: Vec3 = (force_d + force_g)
         net_force_dir = net_force_dir.normalize()
 
-        force_dir_q = Quat(1.0, 0.0, 0.0, 0.0).rotation_between_vectors(net_force_dir)
+        force_dir_q = Quat(
+            1.0, 0.0, 0.0, 0.0).rotation_between_vectors(net_force_dir)
 
         return force_dir_q.rotate(force_d)
+
