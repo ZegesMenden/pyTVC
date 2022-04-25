@@ -1,7 +1,5 @@
 from __future__ import annotations
 from dataclasses import dataclass
-from http.client import NON_AUTHORITATIVE_INFORMATION
-from pytvc.data import rocketMotor
 import numpy as np
 
 
@@ -777,7 +775,7 @@ class parachute:
     def calculate_forces(self, mass: float, velocity: Vec3, air_density: float = 1.225) -> Vec3:
 
         # untested, probably broken
-        
+
         force_g = Vec3(-mass * 9.806, 0.0, 0.0)
         force_d = -velocity.normalize() * ( self.drag_coefficient/2.0 * air_density * self.drag_area * velocity.length()**2 )
 
