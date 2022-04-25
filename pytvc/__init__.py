@@ -5,6 +5,6 @@ import numpy as np
 # import data as _data
 import pytvc.control as control
 import pytvc.rocket as _rocket
-from physics import *
+from pytvc.physics import *
 
 # import pytvc.data
