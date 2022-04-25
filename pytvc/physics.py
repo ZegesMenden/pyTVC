@@ -1,6 +1,7 @@
 from __future__ import annotations
 from dataclasses import dataclass
-from data import rocketMotor
+from http.client import NON_AUTHORITATIVE_INFORMATION
+from pytvc.data import rocketMotor
 import numpy as np
 
 
@@ -459,7 +460,7 @@ class Quat:
 
 class TVC:
 
-    def __init__(self, speed: float = 0.0, offset: Vec3 = Vec3, throttleSpeed: float = 0.0, maxPosition: Vec3 = Vec3, minPosition: Vec3 = Vec3, minThrottle: float = 0.9, actuator_precision: float = 0.0, linkage_ratio: float = 0.0) -> None:
+    def __init__(self, speed: float = 0.0, offset: Vec3 = Vec3(), throttleSpeed: float = 0.0, maxPosition: Vec3 = Vec3(), minPosition: Vec3 = Vec3(), minThrottle: float = 0.9, actuator_precision: float = 0.0, linkage_ratio: float = 0.0) -> None:
         """__init__ initializes the TVC object
 
         Args:
@@ -567,14 +568,13 @@ class TVC:
         return tmp_m, thrust
 
 
-@dataclass
 class physicsBody:
 
     """physicsBody""" 
 
-    def __init__(self, position: Vec3 = Vec3, velocity: Vec3 = Vec3, rotation: Quat = Quat, rotational_velocity: Vec3 = Vec3,
+    def __init__(self, position: Vec3 = Vec3(), velocity: Vec3 = Vec3(), rotation: Quat = Quat(), rotational_velocity: Vec3 = Vec3(),
                  mass: float = 1.0, moment_of_inertia: Vec3 = Vec3(1.0, 1.0, 1.0), ref_area: float = 1.0, drag_coefficient_forewards: float = 0.0,
-                 drag_coefficient_sideways: float = 0.0, wind_speed: Vec3 = Vec3, cp_location: Vec3 = Vec3, friction_coeff: float = 0.0, use_aero: bool = False):
+                 drag_coefficient_sideways: float = 0.0, wind_speed: Vec3 = Vec3(), cp_location: Vec3 = Vec3(), friction_coeff: float = 0.0, use_aero: bool = False):
 
         """initializes the physicsBody object
         
@@ -707,7 +707,7 @@ class physicsBody:
         """
 
         # aero
-        velocity_relative_wind: Vec3 = self.velocity - self.wind
+        velocity_relative_wind: Vec3 = self.velocity - self.wind_speed
         if velocity_relative_wind.length() > 0.0:
 
             self.aoa = velocity_relative_wind.angle_between_vectors(
@@ -730,7 +730,7 @@ class physicsBody:
             self.apply_torque(self.rotational_velocity * -
                               self.friction_coeff * self.air_density)
 
-        self.acceleration_local = self.rotation.conj().rotate(self.acceleration)
+        self.acceleration_local = self.rotation.conjugate().rotate(self.acceleration)
 
         self.acceleration.x -= 9.81
 
@@ -753,3 +753,37 @@ class physicsBody:
         """clears the physics body of all forces and torques"""
         self.acceleration = Vec3(0.0, 0.0, 0.0)
         self.rotational_acceleration = Vec3(0.0, 0.0, 0.0)
+
+class parachute:
+
+    def __init__(self, diameter: float = 1.0, cord_len: float = 1.0, drag_coeff: float = 1.75) -> None:
+        """initializes the parachute
+
+        Args:
+            diameter (float, optional): diameter of the parachute in meters. Defaults to 1.0.
+            cord_len (float, optional): length of the shock cord connecting to the rocket ( not implemented ). Defaults to 1.0.
+            drag_coeff (float, optional): drag coefficient of the parachute. Defaults to 1.75.
+
+        Returns:
+            _type_: _description_
+        """
+        self.drag_area: float = np.pi * (diameter*diameter) / 4.0 
+        self.cord_len: float = cord_len
+        # average value for a parachute from nasa
+        self.drag_coefficient: float = drag_coeff
+
+        return None
+
+    def calculate_forces(self, mass: float, velocity: Vec3, air_density: float = 1.225) -> Vec3:
+
+        # untested, probably broken
+        
+        force_g = Vec3(-mass * 9.806, 0.0, 0.0)
+        force_d = -velocity.normalize() * ( self.drag_coefficient/2.0 * air_density * self.drag_area * velocity.length()**2 )
+
+        net_force_dir: Vec3 = (force_d + force_g)
+        net_force_dir = net_force_dir.normalize()
+
+        force_dir_q = Quat(1.0, 0.0, 0.0, 0.0).rotation_between_vectors(net_force_dir)
+
+        return force_dir_q.rotate(force_d)
