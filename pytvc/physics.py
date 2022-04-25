@@ -1,20 +1,22 @@
 from __future__ import annotations
 from dataclasses import dataclass
+from data import rocketMotor
 import numpy as np
-import scipy as sp
+
 
 def clamp(x, min_val, max_val):
     return max(min(x, max_val), min_val)
 
+
 @dataclass
-class vec3:
+class Vec3:
 
     x: float = 0.0
     y: float = 0.0
     z: float = 0.0
 
     def __init__(self, x: float = 0.0, y: float = 0.0, z: float = 0.0) -> None:
-        """__init__ initializes a vec3 object.
+        """__init__ initializes a Vec3 object.
 
         Args:
             x (float, optional): the x component of the vector. Defaults to 0.0.
@@ -25,60 +27,60 @@ class vec3:
         self.y = y
         self.z = z
 
-    def __add__(self, other: vec3) -> vec3:
+    def __add__(self, other: Vec3) -> Vec3:
         """__add__ adds 2 vectors and returns the sum
 
         Args:
-            other (vec3): right hand vector to add
+            other (Vec3): right hand vector to add
 
         Raises:
             NotImplementedError: raises notImplemented if the right hand side is not a vector object
 
         Returns:
-            vec3: a vector sum of the left hand and right hand vector
+            Vec3: a vector sum of the left hand and right hand vector
         """
-        if isinstance(other, vec3):
-            return vec3(self.x + other.x, self.y + other.y, self.z + other.z)
+        if isinstance(other, Vec3):
+            return Vec3(self.x + other.x, self.y + other.y, self.z + other.z)
         else:
             raise NotImplementedError
 
-    def __sub__(self, other: vec3) -> vec3:
+    def __sub__(self, other: Vec3) -> Vec3:
         """__sub__ subtracts 2 vectors and returns the difference
 
         Args:
-            other (vec3): right hand vector to subtract
+            other (Vec3): right hand vector to subtract
 
         Raises:
             NotImplementedError: raises notImplemented if the right hand side is not a vector object
 
         Returns:
-            vec3: a vector difference of the left hand and right hand vector
+            Vec3: a vector difference of the left hand and right hand vector
         """
-        if isinstance(other, vec3):
-            return vec3(self.x - other.x, self.y - other.y, self.z - other.z)
+        if isinstance(other, Vec3):
+            return Vec3(self.x - other.x, self.y - other.y, self.z - other.z)
         else:
             raise NotImplementedError
 
-    def __mul__(self, other: vec3) -> vec3:
+    def __mul__(self, other: Vec3) -> Vec3:
         """__mul__ multiplies 2 vectors and returns the product
 
         Args:
-            other (vec3): right hand vector to multiply
+            other (Vec3): right hand vector to multiply
 
         Raises:
             NotImplementedError: raises notImplemented if the right hand side is not a vector object
 
         Returns:
-            vec3: a vector product of the left hand and right hand vector
+            Vec3: a vector product of the left hand and right hand vector
         """
-        if isinstance(other, vec3):
-            return vec3(self.x * other.x, self.y * other.y, self.z * other.z)
+        if isinstance(other, Vec3):
+            return Vec3(self.x * other.x, self.y * other.y, self.z * other.z)
         elif isinstance(other, int) or isinstance(other, float):
-            return vec3(self.x * other, self.y * other, self.z * other)
+            return Vec3(self.x * other, self.y * other, self.z * other)
         else:
             raise NotImplementedError
 
-    def __truediv__(self, other) -> vec3:
+    def __truediv__(self, other) -> Vec3:
         """__truediv__ divides 2 vectors and returns the quotient
 
         Args:
@@ -88,12 +90,12 @@ class vec3:
             NotImplementedError: raises notImplemented if the right hand side is not a vector object or a number
 
         Returns:
-            vec3: a vector quotient of the left hand and right hand vector
+            Vec3: a vector quotient of the left hand and right hand vector
         """
-        if isinstance(other, vec3):
-            return vec3(self.x / other.x, self.y / other.y, self.z / other.z)
+        if isinstance(other, Vec3):
+            return Vec3(self.x / other.x, self.y / other.y, self.z / other.z)
         elif isinstance(other, int) or isinstance(other, float):
-            return vec3(self.x / other, self.y / other, self.z / other)
+            return Vec3(self.x / other, self.y / other, self.z / other)
         else:
             raise NotImplementedError
 
@@ -103,8 +105,8 @@ class vec3:
         Returns:
             str: a string representation of the vector
         """
-        return f"vec3({self.x}, {self.y}, {self.z})"
-    
+        return f"Vec3({self.x}, {self.y}, {self.z})"
+
     def __str__(self) -> str:
         """__str__ returns a string representation of the vector
 
@@ -112,20 +114,20 @@ class vec3:
             str: a string representation of the vector
         """
         return f"{self.x}, {self.y}, {self.z}"
-    
-    def __neg__(self) -> vec3:
+
+    def __neg__(self) -> Vec3:
         """__neg__ returns the negative of the vector
 
         Returns:
-            vec3: the negative of the vector
+            Vec3: the negative of the vector
         """
-        return vec3(-self.x, -self.y, -self.z)
-    
-    def __eq__(self, other: vec3) -> bool:
+        return Vec3(-self.x, -self.y, -self.z)
+
+    def __eq__(self, other: Vec3) -> bool:
         """__eq__ returns true if the vectors are equal
 
         Args:
-            other (vec3): right hand vector to compare
+            other (Vec3): right hand vector to compare
 
         Raises:
             NotImplementedError: raises notImplemented if the right hand side is not a vector object
@@ -133,16 +135,16 @@ class vec3:
         Returns:
             bool: true if the vectors are equal
         """
-        if isinstance(other, vec3):
+        if isinstance(other, Vec3):
             return self.x == other.x and self.y == other.y and self.z == other.z
         else:
             raise NotImplementedError
-    
-    def __ne__(self, other: vec3) -> bool:
+
+    def __ne__(self, other: Vec3) -> bool:
         """__ne__ returns true if the vectors are not equal
 
         Args:
-            other (vec3): right hand vector to compare
+            other (Vec3): right hand vector to compare
 
         Raises:
             NotImplementedError: raises notImplemented if the right hand side is not a vector object
@@ -150,52 +152,52 @@ class vec3:
         Returns:
             bool: true if the vectors are not equal
         """
-        if isinstance(other, vec3):
+        if isinstance(other, Vec3):
             return self.x != other.x or self.y != other.y or self.z != other.z
         else:
             raise NotImplementedError
 
-    def __round__(self, ndigits: int = 0) -> vec3:
+    def __round__(self, ndigits: int = 0) -> Vec3:
         """__round__ returns the rounded vector
 
         Args:
             ndigits (int): number of digits to round to
 
         Returns:
-            vec3: the rounded vector
+            Vec3: the rounded vector
         """
-        return vec3(round(self.x, ndigits), round(self.y, ndigits), round(self.z, ndigits))
-    
-    def __abs__(self) -> vec3:
+        return Vec3(round(self.x, ndigits), round(self.y, ndigits), round(self.z, ndigits))
+
+    def __abs__(self) -> Vec3:
         """__abs__ returns the absolute value of the vector
 
         Returns:
-            vec3: the absolute value of the vector
+            Vec3: the absolute value of the vector
         """
-        return vec3(abs(self.x), abs(self.y), abs(self.z))
-    
-    def cross(self, other: vec3) -> vec3:
+        return Vec3(abs(self.x), abs(self.y), abs(self.z))
+
+    def cross(self, other: Vec3) -> Vec3:
         """cross returns the cross product of 2 vectors
 
         Args:
-            other (vec3): right hand vector to cross
+            other (Vec3): right hand vector to cross
 
         Raises:
             NotImplementedError: raises notImplemented if the right hand side is not a vector object
 
         Returns:
-            vec3: a vector cross product of the left hand and right hand vector
+            Vec3: a vector cross product of the left hand and right hand vector
         """
-        if isinstance(other, vec3):
-            return vec3(self.y * other.z - self.z * other.y, self.z * other.x - self.x * other.z, self.x * other.y - self.y * other.x)
+        if isinstance(other, Vec3):
+            return Vec3(self.y * other.z - self.z * other.y, self.z * other.x - self.x * other.z, self.x * other.y - self.y * other.x)
         else:
             raise NotImplementedError
-    
-    def dot(self, other: vec3) -> float:
+
+    def dot(self, other: Vec3) -> float:
         """dot returns the dot product of 2 vectors
 
         Args:
-            other (vec3): right hand vector to dot
+            other (Vec3): right hand vector to dot
 
         Raises:
             NotImplementedError: raises notImplemented if the right hand side is not a vector object
@@ -203,11 +205,11 @@ class vec3:
         Returns:
             float: a vector dot product of the left hand and right hand vector
         """
-        if isinstance(other, vec3):
+        if isinstance(other, Vec3):
             return self.x * other.x + self.y * other.y + self.z * other.z
         else:
             raise NotImplementedError
-    
+
     def length(self) -> float:
         """length returns the length of the vector
 
@@ -216,23 +218,24 @@ class vec3:
         """
         return np.sqrt(self.x**2 + self.y**2 + self.z**2)
 
-    def normalize(self) -> vec3:
+    def normalize(self) -> Vec3:
         """normalize returns the normalized vector
 
         Returns:
-            vec3: the normalized vector
+            Vec3: the normalized vector
         """
         return self / self.length()
 
-    def angle_between_vectors(self, vector: vec3) -> float:
+    def angle_between_vectors(self, vector: Vec3) -> float:
         """Calculate the angle between two vectors."""
-        if isinstance(vector, vec3):
+        if isinstance(vector, Vec3):
             return np.arccos(self.dot(vector) / (self.length() * vector.length()))
         else:
             return None
 
+
 @dataclass
-class quaternion:
+class Quat:
 
     w: float = 1.0
     x: float = 0.0
@@ -240,33 +243,33 @@ class quaternion:
     z: float = 0.0
 
     def __init__(self, w: float = 1.0, x: float = 0.0, y: float = 0.0, z: float = 0.0):
-        """__init__ initializes a quaternion object
+        """__init__ initializes a Quat object
 
         Args:
-            w (float, optional): the real component of the quaternion. Defaults to 1.0.
-            x (float, optional): the x component of the quaternion. Defaults to 0.0.
-            y (float, optional): the y component of the quaternion. Defaults to 0.0.
-            z (float, optional): the z component of the quaternion. Defaults to 0.0.
+            w (float, optional): the real component of the Quat. Defaults to 1.0.
+            x (float, optional): the x component of the Quat. Defaults to 0.0.
+            y (float, optional): the y component of the Quat. Defaults to 0.0.
+            z (float, optional): the z component of the Quat. Defaults to 0.0.
         """
         self.w = w
         self.x = x
         self.y = y
         self.z = z
 
-    def __mul__(self, other: quaternion) -> quaternion:
-        """__mul__ multiplies 2 quaternions and returns the product
+    def __mul__(self, other: Quat) -> Quat:
+        """__mul__ multiplies 2 Quats and returns the product
 
         Args:
-            other (quaternion): right hand quaternion to multiply
+            other (Quat): right hand Quat to multiply
 
         Raises:
-            NotImplementedError: raises notImplemented if the right hand side is not a quaternion object
+            NotImplementedError: raises notImplemented if the right hand side is not a Quat object
 
         Returns:
-            quaternion: a quaternion product of the left hand and right hand quaternion
+            Quat: a Quat product of the left hand and right hand Quat
         """
-        if isinstance(other, quaternion):
-            return quaternion(
+        if isinstance(other, Quat):
+            return Quat(
                 self.w * other.w - self.x * other.x - self.y * other.y - self.z * other.z,
                 self.w * other.x + self.x * other.w + self.y * other.z - self.z * other.y,
                 self.w * other.y - self.x * other.z + self.y * other.w + self.z * other.x,
@@ -274,102 +277,102 @@ class quaternion:
             )
         else:
             raise NotImplementedError
-    
-    def __add__(self, other: quaternion) -> quaternion:
-        """__add__ adds 2 quaternions and returns the sum
+
+    def __add__(self, other: Quat) -> Quat:
+        """__add__ adds 2 Quats and returns the sum
 
         Args:
-            other (quaternion): right hand quaternion to add
+            other (Quat): right hand Quat to add
 
         Raises:
-            NotImplementedError: raises notImplemented if the right hand side is not a quaternion object
+            NotImplementedError: raises notImplemented if the right hand side is not a Quat object
 
         Returns:
-            quaternion: a quaternion sum of the left hand and right hand quaternion
+            Quat: a Quat sum of the left hand and right hand Quat
         """
-        if isinstance(other, quaternion):
-            return quaternion(self.w + other.w, self.x + other.x, self.y + other.y, self.z + other.z)
+        if isinstance(other, Quat):
+            return Quat(self.w + other.w, self.x + other.x, self.y + other.y, self.z + other.z)
         else:
             raise NotImplementedError
 
-    def __sub__(self, other: quaternion) -> quaternion:
-        """__sub__ subtracts 2 quaternions and returns the difference
+    def __sub__(self, other: Quat) -> Quat:
+        """__sub__ subtracts 2 Quats and returns the difference
 
         Args:
-            other (quaternion): right hand quaternion to subtract
+            other (Quat): right hand Quat to subtract
 
         Raises:
-            NotImplementedError: raises notImplemented if the right hand side is not a quaternion object
+            NotImplementedError: raises notImplemented if the right hand side is not a Quat object
 
         Returns:
-            quaternion: a quaternion difference of the left hand and right hand quaternion
+            Quat: a Quat difference of the left hand and right hand Quat
         """
-        if isinstance(other, quaternion):
-            return quaternion(self.w - other.w, self.x - other.x, self.y - other.y, self.z - other.z)
+        if isinstance(other, Quat):
+            return Quat(self.w - other.w, self.x - other.x, self.y - other.y, self.z - other.z)
         else:
             raise NotImplementedError
 
     def __repr__(self) -> str:
-        """__repr__ returns the quaternion as a string
+        """__repr__ returns the Quat as a string
 
         Returns:
-            str: the quaternion as a string
+            str: the Quat as a string
         """
-        return f"quaternion({self.w}, {self.x}, {self.y}, {self.z})"
-    
+        return f"Quat({self.w}, {self.x}, {self.y}, {self.z})"
+
     def __str__(self) -> str:
-        """__str__ returns the quaternion as a string
+        """__str__ returns the Quat as a string
 
         Returns:
-            str: the quaternion as a string
+            str: the Quat as a string
         """
-        return f"quaternion({self.w}, {self.x}, {self.y}, {self.z})"
-    
+        return f"Quat({self.w}, {self.x}, {self.y}, {self.z})"
+
     def length(self) -> float:
-        """length returns the length of the quaternion
+        """length returns the length of the Quat
 
         Returns:
-            float: the length of the quaternion
+            float: the length of the Quat
         """
         return np.sqrt(self.w**2 + self.x**2 + self.y**2 + self.z**2)
-    
-    def normalize(self) -> quaternion:
-        """normalize returns the normalized quaternion
+
+    def normalize(self) -> Quat:
+        """normalize returns the normalized Quat
 
         Returns:
-            quaternion: the normalized quaternion
+            Quat: the normalized Quat
         """
         return self / self.length()
 
-    def conjugate(self) -> quaternion:
-        """conjugate returns the conjugate of the quaternion
+    def conjugate(self) -> Quat:
+        """conjugate returns the conjugate of the Quat
 
         Returns:
-            quaternion: the conjugate of the quaternion
+            Quat: the conjugate of the Quat
         """
-        return quaternion(self.w, -self.x, -self.y, -self.z)
-    
-    def rotate(self, vector: vec3) -> vec3:
+        return Quat(self.w, -self.x, -self.y, -self.z)
+
+    def rotate(self, vector: Vec3) -> Vec3:
         """rotate returns the rotated vector
 
         Args:
-            vector (vec3): vector to rotate
+            vector (Vec3): vector to rotate
 
         Raises:
             NotImplementedError: raises notImplemented if the right hand side is not a vector object
 
         Returns:
-            vec3: the rotated vector
+            Vec3: the rotated vector
         """
-        if isinstance(vector, vec3):
-            tmp: quaternion = quaternion(0, vector.x, vector.y, vector.z)
+        if isinstance(vector, Vec3):
+            tmp: Quat = Quat(0, vector.x, vector.y, vector.z)
             tmp = self * tmp * self.conjugate()
-            return vec3(tmp.x, tmp.y, tmp.z)
+            return Vec3(tmp.x, tmp.y, tmp.z)
         else:
             raise NotImplementedError
 
-    def fractional(self, a) -> quaternion:
-        """Return the fractional of the quaternion."""
+    def fractional(self, a) -> Quat:
+        """Return the fractional of the Quat."""
 
         self.w = 1-a + a*self.w
         self.x *= a
@@ -378,8 +381,8 @@ class quaternion:
 
         return self.norm()
 
-    def rotation_between_vectors(self, vector: vec3) -> quaternion:
-        """Return the rotation quaternion between two vectors.
+    def rotation_between_vectors(self, vector: Vec3) -> Quat:
+        """Return the rotation Quat between two vectors.
 
         parameters:
 
@@ -387,15 +390,15 @@ class quaternion:
             vector to rotate
         """
 
-        q = quaternion(0.0, vector.x, vector.y, vector.z)
+        q = Quat(0.0, vector.x, vector.y, vector.z)
 
         q = self * q
         q.w = 1 - q.w
 
         return q.normalize()
 
-    def from_axis_angle(self, axis: vec3, angle: float) -> quaternion:
-        """Return the quaternion from an axis and angle.
+    def from_axis_angle(self, axis: Vec3, angle: float) -> Quat:
+        """Return the Quat from an axis and angle.
 
         parameters:
 
@@ -415,17 +418,17 @@ class quaternion:
 
         return self
 
-    def from_euler(self, euler_angles: vec3) -> quaternion:
-        """set the quaternion from euler angles
+    def from_euler(self, euler_angles: Vec3) -> Quat:
+        """set the Quat from euler angles
 
         Args:
-            euler_angles (vec3): euler angles to set to
+            euler_angles (Vec3): euler angles to set to
 
         Raises:
             NotImplementedError: raises notImplemented if the right hand side is not a vector object
 
         Returns:
-            quaternion: the quaternion set from euler angles
+            Quat: the Quat set from euler angles
         """
 
         cr = np.cos(euler_angles.x / 2.0)
@@ -443,70 +446,99 @@ class quaternion:
 
         return self
 
-    def to_euler(self) -> vec3:
-        """Convert a quaternion to euler angles."""
+    def to_euler(self) -> Vec3:
+        """Convert a Quat to euler angles."""
         x = np.arctan2(2.0 * (self.w * self.x + self.y * self.z),
                        1.0 - 2.0 * (self.x**2 + self.y**2))
         y = np.arcsin(2.0 * (self.w * self.y - self.z * self.x))
         z = np.arctan2(2.0 * (self.w * self.z + self.x * self.y),
                        1.0 - 2.0 * (self.y**2 + self.z**2))
 
-        return vec3(x, y, z)
+        return Vec3(x, y, z)
+
 
 class TVC:
 
-    def __init__(self, speed: float = 0.0, offset: vec3 = vec3, throttleSpeed: float = 0.0, maxPosition: vec3 = vec3, minPosition: vec3 = vec3, minThrottle: float = 0.9, actuator_precision: float = 0.0, linkage_ratio: float = 0.0) -> None:
+    def __init__(self, speed: float = 0.0, offset: Vec3 = Vec3, throttleSpeed: float = 0.0, maxPosition: Vec3 = Vec3, minPosition: Vec3 = Vec3, minThrottle: float = 0.9, actuator_precision: float = 0.0, linkage_ratio: float = 0.0) -> None:
         """__init__ initializes the TVC object
 
         Args:
             speed (float, optional): speed of the servos. Defaults to 0.0.
-            offset (vec3, optional): offset of the TVC mount. Defaults to vec3.
+            offset (Vec3, optional): offset of the TVC mount. Defaults to Vec3.
             throttleSpeed (float, optional): speed at which the throttling mechanism throttles. Defaults to 0.0.
-            maxPosition (vec3, optional): maximum positive position of the mount. Defaults to vec3.
-            minPosition (vec3, optional): maximum negative position of the mount. Defaults to vec3.
+            maxPosition (Vec3, optional): maximum positive position of the mount. Defaults to Vec3.
+            minPosition (Vec3, optional): maximum negative position of the mount. Defaults to Vec3.
             minThrottle (float, optional): minimum throttle value. Defaults to 0.9.
             actuator_precision (float, optional): precision of the servos, if set to zero it will be infinite. Defaults to 0.0.
             linkage_ratio (float, optional): ratio between servo movement and TVC movement, if set to zero will skip calculation. Defaults to 0.0.
         """
-        self._rotation: quaternion = quaternion()
-        self._rotation_eulers: vec3 = vec3()
+        self._rotation: Quat = Quat()
+        self._rotationEulers: Vec3 = Vec3()
         self._throttle: float = 1.0
 
-        self.offset: vec3 = offset
-        self.maxPosition: vec3 = maxPosition
-        self.minPosition: vec3 = minPosition
-        self.targetEulers: vec3 = vec3()
+        self.offset: Vec3 = offset
+        self.maxPosition: Vec3 = maxPosition
+        self.minPosition: Vec3 = minPosition
+        self.targetEulers: Vec3 = Vec3()
         self.speed: float = speed
-        self.offset: vec3 = vec3()
+        self.offset: Vec3 = Vec3()
         self.targetThrottle: float = 1.0
         self.throttleSpeed: float = throttleSpeed
         self.minThrottle: float = minThrottle
 
+        self._motors = {}
+
+    def add_motor(self, motor, name: str = "") -> None:
+        """addMotor adds a motor to the TVC mount
+
+        Args:
+            motor (str or rocketMotor): _description_
+            name (str, optional): name of the rocket motor, if no name is given the name defaults to motor + the motor index. Defaults to "".
+
+        Raises:
+            ValueError: if the motor is already added
+            TypeError: the motor is not a rocketMotor or string
+        """
+        if isinstance(motor, rocketMotor):
+            if name in self._motors:
+                raise ValueError("A motor with the name " + name + " already exists")
+            else:
+                self._motors[name] = motor
+        elif isinstance(motor, str):
+            if name in self._motors:
+                raise ValueError("A motor with the name " + name + " already exists")
+            else:
+                self._motors[name] = rocketMotor(motor, self.time_step)
+        else:
+            raise TypeError("motor must be a rocketMotor or a string")
+
     def throttle(self, target_throttle) -> None:
         self.target_throttle = target_throttle
-    
+
     def set_position(self, target_position) -> None:
-        if isinstance(target_position, quaternion):
-            self.target_eulers = target_position.to_euler()
-        elif isinstance(target_position, vec3):
-            self.target_eulers = target_position
+        if isinstance(target_position, Quat):
+            self.targetEulers = target_position.to_euler()
+        elif isinstance(target_position, Vec3):
+            self.targetEulers = target_position
         else:
             raise NotImplemented
-    
+
     def update(self, dt: float):
         """update updates the TVC mount and throttling mechanism
 
         Args:
             dt (float): time step
         """
-        error: vec3 = self.target_eulers - self._rotation_eulers
+        error: Vec3 = self.targetEulers - self._rotationEulers
         error = error * (self.speed * dt)
-        self._rotation_eulers += error
-        
-        self._rotation_eulers.y = clamp(self._rotation_eulers.y, self.minPosition.y, self.maxPosition.y)
-        self._rotation_eulers.z = clamp(self._rotation_eulers.z, self.minPosition.z, self.maxPosition.z)
+        self._rotationEulers += error
 
-        self._rotation = quaternion().from_euler(self._rotation_eulers + self.offset)
+        self._rotationEulers.y = clamp(
+            self._rotationEulers.y, self.minPosition.y, self.maxPosition.y)
+        self._rotationEulers.z = clamp(
+            self._rotationEulers.z, self.minPosition.z, self.maxPosition.z)
+
+        self._rotation = Quat().from_euler(self._rotationEulers + self.offset)
 
         throttle_error = self.target_throttle - self._throttle
         throttle_error = throttle_error * self.throttle_speed * dt
@@ -516,136 +548,208 @@ class TVC:
             self._throttle = self.minThrottle
         if self._throttle > 1.0:
             self._throttle = 1.0
-
-    def calculate_forces(self, thrust: float) -> vec3:
-        force: vec3 = self._rotation.rotate(vec3(thrust * self._throttle, 0.0, 0.0))
-        return force
         
+        
+    def get_values(self, time: float) -> tuple[float, float]:
+        """get values returns the a tuple of the current mass and thrust vector from the TVC mount
+
+        Args:
+            time (float): the current time for the motors
+
+        Returns:
+            tuple[float, float]: a tuple of the current mass and thrust vector from the TVC mount
+        """
+        for motor in self._motors.values():
+            tmp_m, tmp_t = motor.update(time)
+
+        thrust: Vec3 = self._rotation.rotate(Vec3(tmp_t, 0.0, 0.0))
+
+        return tmp_m, thrust
+
 
 @dataclass
-class physics_body:
+class physicsBody:
 
-    def __init__(self):
-        """__init__ initializes the physics body object
-        NEEDS SIGNIFICANT WORK"""
-        self.position: vec3 = vec3(0.0, 0.0, 0.0)
-        self.velocity: vec3 = vec3(0.0, 0.0, 0.0)
+    """physicsBody""" 
 
-        self.acceleration: vec3 = vec3(0.0, 0.0, 0.0)
-        self.acceleration_local: vec3 = vec3(0.0, 0.0, 0.0)
+    def __init__(self, position: Vec3 = Vec3, velocity: Vec3 = Vec3, rotation: Quat = Quat, rotational_velocity: Vec3 = Vec3,
+                 mass: float = 1.0, moment_of_inertia: Vec3 = Vec3(1.0, 1.0, 1.0), ref_area: float = 1.0, drag_coefficient_forewards: float = 0.0,
+                 drag_coefficient_sideways: float = 0.0, wind_speed: Vec3 = Vec3, cp_location: Vec3 = Vec3, friction_coeff: float = 0.0, use_aero: bool = False):
 
-        self.rotation: quaternion = quaternion(1.0, 0.0, 0.0, 0.0)
-        self.rotation_euler: vec3 = vec3(0.0, 0.0, 0.0)
+        """initializes the physicsBody object
+        
+        Args:
+            position (Vec3, optional): position of the body. Defaults to Vec3.
+            velocity (Vec3, optional): velocity of the body. Defaults to Vec3.
+            rotation (Quat, optional): rotation of the body. Defaults to Quat.
+            rotational_velocity (Vec3, optional): rotational velocity of the body. Defaults to Vec3.
+            mass (float, optional): mass of the body. Defaults to 1.0.
+            moment_of_inertia (Vec3, optional): inertia of the body. Defaults to Vec3.
+            ref_area (float, optional): reference area of the body. Defaults to 1.0.
+            drag_coefficient_forewards (float, optional): drag coefficient of the body in the forewards direction. Defaults to 0.0.
+            drag_coefficient_sideways (float, optional): drag coefficient of the body in the sideways direction. Defaults to 0.0.
+            wind_speed (Vec3, optional): speed of wind relative to the body. Defaults to Vec3.
+            cp_location (Vec3, optional): center of pressure location of the body. Defaults to Vec3.
+            friction_coeff (float, optional): friction coefficient of the body. Defaults to 0.0.
+            use_aero (bool, optional): whether or not to use aerodynamic forces. Defaults to False.
+        """
 
-        self.rotational_velocity: vec3 = vec3(0.0, 0.0, 0.0)
-        self.rotational_acceleration: vec3 = vec3(0.0, 0.0, 0.0)
+        self.position: Vec3 = position
+        self.velocity: Vec3 = velocity
 
-        self.mass: float = 1.0
-        self.moment_of_inertia: vec3 = vec3(1.0, 1.0, 1.0)
+        self.acceleration: Vec3 = Vec3(0.0, 0.0, 0.0)
+        self.acceleration_local: Vec3 = Vec3(0.0, 0.0, 0.0)
+
+        self.rotation: Quat = rotation
+        self.rotation_euler: Vec3 = Vec3(0.0, 0.0, 0.0)
+
+        self.rotational_velocity: Vec3 = rotational_velocity
+        self.rotational_acceleration: Vec3 = Vec3(0.0, 0.0, 0.0)
+
+        self.mass: float = mass
+        self.moment_of_inertia: Vec3 = moment_of_inertia
 
         self.aoa: float = 0.0
-        self.ref_area: float = 1.0
+        self.ref_area: float = ref_area
 
-        self.drag_coefficient_forwards: float = 0.0
-        self.drag_coefficient_sideways: float = 0.0
+        self.drag_coefficient_forwards: float = drag_coefficient_forewards
+        self.drag_coefficient_sideways: float = drag_coefficient_sideways
 
-        self.wind: vec3 = vec3(0.0, 0.0, 0.0)
+        self.wind_speed: Vec3 = wind_speed
 
-        self.cp_location: vec3 = vec3(0.5, 0.0, 0.0)
+        self.cp_location: Vec3 = cp_location
 
-        self.friction_coeff: float = 0.0
+        self.friction_coeff: float = friction_coeff
         self.air_density: float = 1.225
 
-        self.drag_force: vec3 = vec3()
+        self.drag_force: Vec3 = Vec3()
 
-        self.use_aero: bool = False
+        self.use_aero: bool = use_aero
 
-    def apply_torque(self, torque: vec3):
-        """Applies torque in the global frame"""
+    def apply_torque(self, torque: Vec3) -> None:
+        """apply a torque on the body in the global frame
+
+        Args:
+            torque (Vec3): _description_
+        """
         self.rotational_acceleration += (torque / self.moment_of_inertia)
 
-    def apply_point_torqe(self, torque: vec3, point: vec3):
-        """Applies point torque in the global frame"""
-        tmp = point.cross(torque)
+    def apply_point_torque(self, force: Vec3, point: Vec3) -> None:
+        """apply a point torque in the global frame
+
+        Args:
+            torque (Vec3): the force to apply
+            point (Vec3): distance of the force from the center of mass
+        """
+        tmp = point.cross(force)
         self.apply_torque(tmp)
 
-    def apply_local_torque(self, torque: vec3):
-        """Applies torque in the local frame"""
+    def apply_local_torque(self, torque: Vec3) -> None:
+        """apply a torque in the local frame
+
+        Args:
+            torque (Vec3): the torque to apply
+        """
         self.apply_torque(self.rotation.rotate(torque))
 
-    def apply_local_point_torqe(self, torque: vec3, point: vec3):
-        """Applies point torque in the local frame"""
-        self.apply_point_torqe(self.rotation.rotate(
-            torque), self.rotation.rotate(point))
+    def apply_local_point_torque(self, force: Vec3, point: Vec3) -> None:
+        """apply a point torque in the local frame
 
-    def apply_force(self, force: vec3):
-        """Applies force in global frame"""
-        accel: vec3 = force / self.mass
+        Args:
+            force (Vec3): the force to apply 
+            point (Vec3): the distance of the force from the center of mass
+        """
+        self.apply_point_torque(self.rotation.rotate(
+            force), self.rotation.rotate(point))
+
+    def apply_force(self, force: Vec3) -> None:
+        """apply a force on the body in the global frame
+
+        Args:
+            force (Vec3): the force to apply
+        """
+        accel: Vec3 = force / self.mass
         self.acceleration += accel
 
-    def apply_point_force(self, force: vec3, point: vec3):
-        """Applies point force in global frame"""
+    def apply_point_force(self, force: Vec3, point: Vec3) -> None:
+        """apply a point force in the global frame, affects rotation and translation
+
+        Args:
+            force (Vec3): the force to apply
+            point (Vec3): the distance of the force from the center of mass
+        """
         self.apply_force(force)
-        self.apply_point_torqe(force, point)
+        self.apply_point_torque(force, point)
 
-    def apply_local_force(self, force: vec3):
-        """Applies force in local frame"""
+    def apply_local_force(self, force: Vec3) -> None:
+        """apply a force in the local frame
+
+        Args:
+            force (Vec3): the force to apply
+        """
         self.apply_force(self.rotation.rotate(force))
-    
-    def apply_local_point_force(self, force: vec3, point: vec3):
-        """Applies point force in local frame"""
+
+    def apply_local_point_force(self, force: Vec3, point: Vec3) -> None:
+        """apply a point force in the local frame, affects rotation and translation
+
+        Args:
+            force (Vec3): the force to apply
+            point (Vec3): the distance of the force from the bodies center of mass
+        """
         self.apply_local_force(self.rotation.rotate(force))
-        self.apply_local_point_torqe(force, point)
+        self.apply_local_point_torque(force, point)
 
-    def update(self, dt: float):
-        """Updates the physics body."""
+    def update(self, dt: float) -> None:
+        """updates the physics body for the given change in time
 
-        # drag
+        Args:
+            dt (float): change in time from the previous update to "now"
+        """
 
-        velocity_relative_wind: vec3 = self.velocity - self.wind
-        
+        # aero
+        velocity_relative_wind: Vec3 = self.velocity - self.wind
         if velocity_relative_wind.length() > 0.0:
 
             self.aoa = velocity_relative_wind.angle_between_vectors(
-                self.rotation.rotate(vec3(1.0, 0.0, 0.0)))
+                self.rotation.rotate(Vec3(1.0, 0.0, 0.0)))
 
             if self.aoa <= 1e-5:
                 self.aoa = 1e-5
 
             if (self.aoa > 1.5708):
-               self.aoa = np.pi - self.aoa
+                self.aoa = np.pi - self.aoa
 
-            # self.aoa = local_course.angle_between_vectors(vec3(1.0, 0.0, 0.0))
+            drag_coefficient = self.drag_coefficient_forwards + \
+                ((-np.cos(self.aoa)/2.0 + 0.5) *
+                 (self.drag_coefficient_sideways - self.drag_coefficient_forwards))
 
-            drag_coefficient = self.drag_coefficient_forwards + ((-np.cos(self.aoa)/2.0 + 0.5) * (self.drag_coefficient_sideways - self.drag_coefficient_forwards))
-
-            self.drag_force = -velocity_relative_wind.normalize() * (drag_coefficient/2.0 * self.air_density * self.ref_area * self.velocity.length()**2)
+            self.drag_force = -velocity_relative_wind.normalize() * (drag_coefficient/2.0 *
+                                                                     self.air_density * self.ref_area * self.velocity.length()**2)
 
             self.apply_point_force(self.drag_force, self.cp_location)
-            self.apply_torque(self.rotational_velocity * -self.friction_coeff * self.air_density)
-
-        # integration
+            self.apply_torque(self.rotational_velocity * -
+                              self.friction_coeff * self.air_density)
 
         self.acceleration_local = self.rotation.conj().rotate(self.acceleration)
 
         self.acceleration.x -= 9.81
 
+        self.position += self.velocity * dt + (self.acceleration*0.5) * (dt*dt)
         self.velocity += self.acceleration * dt
-        self.position += self.velocity * dt
 
         self.rotational_velocity += self.rotational_acceleration * dt
 
         ang: float = self.rotational_velocity.length()
-
         if ang > 0.0:
-            self.rotation *= quaternion().from_axis_angle(self.rotational_velocity / ang, ang * dt)
+            self.rotation *= Quat().from_axis_angle(self.rotational_velocity / ang, ang * dt)
 
-        self.rotation_euler = self.rotation.to_euler()    
+        self.rotation_euler = self.rotation.to_euler()
 
         if self.position.x < 0.0:
             self.position.x = 0.0
             self.velocity.x = 0.0
 
     def clear(self):
-        self.acceleration = vec3(0.0, 0.0, 0.0)
-        self.rotational_acceleration = vec3(0.0, 0.0, 0.0)
+        """clears the physics body of all forces and torques"""
+        self.acceleration = Vec3(0.0, 0.0, 0.0)
+        self.rotational_acceleration = Vec3(0.0, 0.0, 0.0)

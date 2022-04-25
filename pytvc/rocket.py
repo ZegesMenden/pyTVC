@@ -2,61 +2,48 @@ from os import times
 from pytvc.physics import *
 from pytvc.data import rocketMotor
 
-class rocket_body:
+class rocketBody:
 
     def __init__(self, dry_mass: float = 0.0, time_step: float = 0.0) -> None:
 
         self.time = 0.0
         self.time_step = time_step
 
-        self._motors = {}
         self._tvc_mounts = {}
 
         self.dry_mass = dry_mass
         self.engine_mass = 0.0
         self.motor_thrust = 0.0
 
-        self.body: physics_body = physics_body()
-        
-    def addMotor(self, motor, name: str = "") -> None:
-        """addMotor adds a motor to the rocket
+        self.body: physicsBody = physicsBody()
+
+    def add_tvc_mount(self, tvc_mount: TVC, position: Vec3, name: str) -> None:
+        """adds a TVC mount to the rocket
 
         Args:
-            motor (str or rocketMotor): _description_
-            name (str, optional): name of the roket motor, if no name is given the name defaults to motor + the motor index. Defaults to "".
+            tvc_mount (TVC): TVC mount to add
+            position (Vec3): position from the center of mass
+            name (str): name of the mount
 
         Raises:
-            ValueError: if the motor is already added
-            ValueError: if the time step is not equal to the time step of the rocket
-            TypeError: the motor is not a rocketMotor or string
+            Exception: _description_
+            Exception: _description_
         """
-        if isinstance(motor, rocketMotor):
-            if motor._timeStep != self.time_step:
-                raise ValueError("The time step of the rocket and the motor must be the same")
-            else:
-                if name in self._motors:
-                    raise ValueError("A motor with the name " + name + " already exists")
-                else:
-                    self._motors[name] = motor
-        elif isinstance(motor, str):
-            if name in self._motors:
-                raise ValueError("A motor with the name " + name + " already exists")
-            else:
-                self._motors[name] = rocketMotor(motor, self.time_step)
+        if name in self._tvc_mounts:
+            raise Exception("TVC mount already exists")
         else:
-            raise TypeError("motor must be a rocketMotor or a string")
+            if isinstance(tvc_mount, TVC):
+                self._tvc_mounts[name] = {"mount": tvc_mount, "position": position}
+            else:
+                raise Exception("TVC mount must be of type TVC")
 
     def update(self) -> None:
 
         self.time += self.time_step
         
-        tmp_m, tmp_t = 0.0, 0.0
+        tmp_m, tmp_t = 0.0, Vec3
 
-        for motor in self._motors.values():
-            tmp_m, tmp_t = motor.update(self.time)
 
-        self.engine_mass = tmp_m
-        self.motor_thrust = tmp_t
 
         self.body.update(self.time_step)
         
