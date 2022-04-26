@@ -1,7 +1,7 @@
 from __future__ import annotations
 from dataclasses import dataclass
 import numpy as np
-from pytvc.data import rocketMotor
+from pytvc.data import rocket_motor
 
 def clamp(x, min_val, max_val):
     return max(min(x, max_val), min_val)
@@ -277,6 +277,20 @@ class Quat:
         else:
             raise NotImplementedError
 
+    def __truediv__(self, scalar: float) -> Quat:
+        """__truediv__ _summary_
+
+        Args:
+            scalar (float): _description_
+
+        Returns:
+            Quat: _description_
+        """
+
+        if isinstance(scalar, float) or isinstance(scalar, int):
+            return Quat(self.w / scalar, self.x / scalar, self.y / scalar, self.z / scalar)
+        
+
     def __add__(self, other: Quat) -> Quat:
         """__add__ adds 2 Quats and returns the sum
 
@@ -458,7 +472,7 @@ class Quat:
 
 class TVC:
 
-    def __init__(self, name: str = "", speed: float = 0.0, offset: Vec3 = Vec3(), throttleSpeed: float = 0.0, maxPosition: Vec3 = Vec3(), minPosition: Vec3 = Vec3(), minThrottle: float = 0.9, actuator_precision: float = 0.0, linkage_ratio: float = 0.0, update_delay: float = 0.02, log_data: bool = True) -> None:
+    def __init__(self, name: str = "", speed: float = 0.0, offset: Vec3 = Vec3(), throttleSpeed: float = 0.0, maxPosition: Vec3 = Vec3(), minPosition: Vec3 = Vec3(), minThrottle: float = 0.9, actuator_precision: float = 0.0, linkage_ratio: float = 0.0, update_delay: float = 0.02, log_data: bool = True, noise: float = 0.0) -> None:
         """__init__ initializes the TVC object
 
         Args:
@@ -487,6 +501,7 @@ class TVC:
         self.targetThrottle: float = 1.0
         self.throttleSpeed: float = throttleSpeed
         self.minThrottle: float = minThrottle
+        self.noise: float = noise
 
         self.log_data: bool = log_data
         self.update_delay = update_delay
@@ -500,8 +515,10 @@ class TVC:
     def update_func(self, func):
         """update_func sets the update function for the TVC
 
+        the update function must return either a Vec3 class containing the TVC control output in radians, or a Quat class with a control output rotation
+
         Args:
-            func (function): function to set as update function
+            func (function) -> Vec3 or Quat: function to set as update function
         """
         self._update_func = func
         return func
@@ -510,14 +527,14 @@ class TVC:
         """addMotor adds a motor to the TVC mount
 
         Args:
-            motor (str or rocketMotor): _description_
+            motor (str or rocket_motor): _description_
             name (str, optional): name of the rocket motor, if no name is given the name defaults to motor + the motor index. Defaults to "".
 
         Raises:
             ValueError: if the motor is already added
-            TypeError: the motor is not a rocketMotor or string
+            TypeError: the motor is not a rocket_motor or string
         """
-        if isinstance(motor, rocketMotor):
+        if isinstance(motor, rocket_motor):
             if name in self._motors:
                 raise ValueError("A motor with the name " +
                                  name + " already exists")
@@ -528,9 +545,9 @@ class TVC:
                 raise ValueError("A motor with the name " +
                                  name + " already exists")
             else:
-                self._motors[name] = rocketMotor(motor, self.time_step)
+                self._motors[name] = rocket_motor(motor, self.time_step)
         else:
-            raise TypeError("motor must be a rocketMotor or a string")
+            raise TypeError("motor must be a rocket_motor or a string")
 
     def throttle(self, target_throttle) -> None:
         self.target_throttle = target_throttle
@@ -550,11 +567,11 @@ class TVC:
             dt (float): time step
         """
 
-        if self._update_func is not None:
-            self.set_position(self._update_func)
+        if self._update_func() is not None:
+            self.set_position(self._update_func())
 
         error: Vec3 = self.targetEulers - self._rotationEulers
-        error = error * (self.speed * dt)
+        error = (error / self.speed) * dt
         self._rotationEulers += error
 
         self._rotationEulers.y = clamp(
@@ -562,7 +579,8 @@ class TVC:
         self._rotationEulers.z = clamp(
             self._rotationEulers.z, self.minPosition.z, self.maxPosition.z)
 
-        self._rotation = Quat().from_euler(self._rotationEulers + self.offset)
+        self._rotation = Quat().from_euler(self._rotationEulers + self.offset + Vec3(0.0, np.random.normal(0.0, 1, 1)[0] * self.noise, np.random.normal(0.0, 1, 1)[0] * self.noise))
+        self._rotationEulers = self._rotation.to_euler()
 
         throttle_error = self.target_throttle - self._throttle
         throttle_error = throttle_error * self.throttleSpeed * dt
@@ -583,7 +601,7 @@ class TVC:
             tuple[float, float]: a tuple of the current mass and thrust vector from the TVC mount
         """
         for motor in self._motors.values():
-            tmp_m, tmp_t = motor.update(time)
+            tmp_t, tmp_m = motor.update(time)
 
         thrust: Vec3 = self._rotation.rotate(Vec3(tmp_t, 0.0, 0.0))
 
@@ -592,7 +610,7 @@ class TVC:
 
 class parachute:
 
-    def __init__(self, diameter: float = 1.0, cord_len: float = 1.0, drag_coeff: float = 1.75) -> None:
+    def __init__(self, diameter: float = 1.0, cord_len: float = 1.0, drag_coeff: float = 1.75, name: str = "") -> None:
         """initializes the parachute
 
         Args:
@@ -608,6 +626,8 @@ class parachute:
         # average value for a parachute from nasa
         self.drag_coefficient: float = drag_coeff
 
+        self.name = name
+
         self._deploy_func = None
 
         return None
@@ -616,7 +636,7 @@ class parachute:
         """sets the function to call when the parachute is deployed
 
         Args:
-            func (function): function to call when the parachute is deployed
+            func (function(position: Vec3, velocity: Vec3)): function to call when the parachute is deployed
         """
         self._deploy_func = func
         return func
@@ -645,7 +665,9 @@ class parachute:
         force_d = -velocity.normalize() * (self.drag_coefficient/2.0 * air_density *
                                            self.drag_area * velocity.length()**2)
 
-        net_force_dir: Vec3 = (force_d + force_g)
+        return force_d
+
+        net_force_dir: Vec3 = force_d + force_g
         net_force_dir = net_force_dir.normalize()
 
         force_dir_q = Quat(
@@ -832,7 +854,8 @@ class physics_body:
 
         if self.position.x < 0.0:
             self.position.x = 0.0
-            self.velocity.x = 0.0
+            self.velocity = Vec3()
+            self.rotational_velocity = Vec3()
 
     def clear(self):
         """clears the physics body of all forces and torques"""
