@@ -8,6 +8,16 @@ import csv
 
 # from pytvc.physics import Vec3, Quat
 
+def progress_bar(n, maxn) -> str:
+    progress: str = ""
+    end = int(n/maxn*50)
+    for i in range(50): 
+        if i > end: 
+            progress += ' ' 
+        else: 
+            progress += "="
+    return (f"""[{progress}]\nProgress: {round((n/maxn)*100, 2)}%""")
+
 class data_logger:
     def __init__(self):
         self.variables = 0
@@ -118,7 +128,7 @@ class data_visualizer:
     def __init__(self):
         self.allDataDescriptions = []
 
-    def graph_from_csv(self, datapoints):
+    def graph_from_csv(self, datapoints, file_name):
         descriptionNum = 0
         pointsToLog = []
 
@@ -128,7 +138,7 @@ class data_visualizer:
                     pointsToLog.append(descriptionNum)
             descriptionNum += 1
 
-        with open('data_out.csv', newline='\n') as pathFile:
+        with open(file_name, newline='\n') as pathFile:
             reader = csv.reader(pathFile, delimiter=',', quotechar='"')
             logList = []
             dataOut = []
@@ -160,7 +170,7 @@ class plotter:
         self.n_plots: int = 0
 
     def read_header(self, file_name):
-        # os.chdir('..')
+        self.file_name = file_name
         f = open(file_name, "r")
         self.header = f.readline()
         self.data_descriptions = self.header.split(',')
@@ -182,7 +192,7 @@ class plotter:
         self.n_plots += 1
         plt.figure(self.n_plots)
 
-        plot_points = self.viewer.graph_from_csv(graph_points)
+        plot_points = self.viewer.graph_from_csv(graph_points, self.file_name)
 
         for index, dataPoint in enumerate(plot_points):
             if index > 0:
@@ -191,7 +201,8 @@ class plotter:
                              label=graph_points[index])
                 else:
                     plt.plot(plot_points[0], dataPoint)
-        plt.legend()
+        if annotate:
+           plt.legend()
         plt.xlabel(x_desc)
         plt.ylabel(y_desc)
 
@@ -210,7 +221,7 @@ class plotter:
         self.n_plots += 1
         plt.figure(self.n_plots)
 
-        plot_points = self.viewer.graph_from_csv(graph_points)
+        plot_points = self.viewer.graph_from_csv(graph_points, self.file_name)
 
         ax = plt.axes(projection='3d')
 
@@ -230,7 +241,7 @@ class plotter:
         
         ax = p3.Axes3D(fig)
 
-        plot_position = self.viewer.graph_from_csv(graph_points)
+        plot_position = self.viewer.graph_from_csv(graph_points, self.file_name)
 
         ax.set_xlim3d(-size, size)
         ax.set_ylim3d(-size, size)
@@ -270,7 +281,7 @@ class plotter:
         """Displays all graphs."""
         plt.show()
 
-class rocketMotor:
+class rocket_motor:
 
     """class representing a rocket motor"""
 
@@ -323,8 +334,8 @@ class rocketMotor:
                             self._data.append([thrustToAdd, massToAdd])
                 lPoint = dataTmp
 
-    def setIgnitionTime(self, time: float) -> None:
-        """setIgnitionTime: sets the ignition time of the motor
+    def set_ignition_time(self, time: float) -> None:
+        """set_ignition_time: sets the ignition time of the motor
 
         Args:
             time (float): the ignition time
@@ -342,6 +353,9 @@ class rocketMotor:
         """
         if time > self._ignitionTime and self._ignitionTime != -1.0:
             idx = int(time*self._timeStep)
-            return self._data[idx][0], self._data[idx][1]*0.001
+            if idx < len(self._data):
+                return self._data[idx][0], self._data[idx][1]*0.001
+            else:
+                return 0.0, self._data[-1][1]*0.001
         else:
             return 0.0, self._data[0][1]*0.001
