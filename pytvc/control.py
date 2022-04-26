@@ -1,8 +1,6 @@
 from pytvc.physics import Vec3
 import numpy as np
 
-
-
 class PID:
 
     """PID controller class
