@@ -162,7 +162,10 @@ class rocket:
         """update the body's simulation by one time step"""
 
         self.time += self.time_step
-        
+
+        if self.body.position.x < 0.01 and self.body.velocity.x < 0.0:
+            self._grounded = True
+
         tmp_m = 0.0
         for mount in self._tvc_mounts:
             self._tvc_mounts[mount]["mount"].update(self.time_step)
@@ -174,8 +177,7 @@ class rocket:
         if self.body.position.x > 0.01:
             for p in self._parachutes:
                 if self._parachutes[p]["parachute"]._check(self.body.position, self.body.velocity):
-                    self.body.apply_point_force(self._parachutes[p]["parachute"].calculate_forces(self.body.mass, self.body.velocity), self._parachutes[p]["position"])
-
+                    self.body.apply_force(self._parachutes[p]["parachute"].calculate_forces(self.body.mass, self.body.velocity))#, self._parachutes[p]["position"])
 
         self.body.mass = self.dry_mass + tmp_m
         self.engine_mass = tmp_m
@@ -185,8 +187,6 @@ class rocket:
         if "update" in self._function_registry:
             self._function_registry["update"]()
 
-        # datalogging?
-        # set datalog speed
         if self.log_values and self.time > self.last_log_time + self.log_delay:
             self.datalogger.record_variable("time", self.time)
             self.datalogger.record_variable("position_x", self.body.position.x)
@@ -309,10 +309,11 @@ wind speed: {round(self.wind, 2)}""")
             for tvc in self._rockets[r]._tvc_mounts:
                 t = self._rockets[r]._tvc_mounts[tvc]["mount"]
                 if isinstance(t, TVC):
-                    pTmp.create_2d_graph(['time', 'rotation_x', 'rotation_y', 'rotation_z', f'{t.name}_position_y', f'{t.name}_position_z'], "x", "y", True)
+                    pTmp.create_2d_graph(['time', 'rotation_x', 'rotation_y', 'rotation_z', f'{t.name}_position_y', f'{t.name}_position_z', f'{t.name}_setpoint_y', f'{t.name}_setpoint_z'], "x", "y", True)
                 else:
                     pTmp.create_2d_graph(['time', 'rotation_x', 'rotation_y', 'rotation_z'], "x", "y", True)
-            pTmp.create_2d_graph(['time', 'acceleration_x_local', 'acceleration_y_local', 'acceleration_z_local'], "x", "y", True)
+            pTmp.create_2d_graph(['time', 'acceleration_x_world', 'acceleration_y_world', 'acceleration_z_world'], "x", "y", True)
+
             
             pTmp.show_all_graphs()
 

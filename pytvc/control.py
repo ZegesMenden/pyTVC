@@ -34,7 +34,6 @@ class PID:
         if self.i > self.i_max:
             self.i = self.i_max
         elif self.i < -self.i_max:
-
             self.i = -self.i_max
         
         d = (error - self.last_error) / dt
@@ -118,8 +117,8 @@ class torque_PID(PID):
         if force != 0.0:
             calcval = super().getOutput() * self.inertia / force / self.lever_arm
             if abs(calcval) > 1.0:
-                super().output = 0.0
+                self.output = 0.0
             else:
-                super().output = np.arcsin(calcval)
+                self.output = np.arcsin(calcval)
         else:
-            super().output = 0.0
+            self.output = 0.0

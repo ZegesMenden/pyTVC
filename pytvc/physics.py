@@ -571,7 +571,7 @@ class TVC:
             self.set_position(self._update_func())
 
         error: Vec3 = self.targetEulers - self._rotationEulers
-        error = (error / self.speed) * dt
+        error = error * self.speed * dt
         self._rotationEulers += error
 
         self._rotationEulers.y = clamp(
@@ -581,6 +581,7 @@ class TVC:
 
         self._rotation = Quat().from_euler(self._rotationEulers + self.offset + Vec3(0.0, np.random.normal(0.0, 1, 1)[0] * self.noise, np.random.normal(0.0, 1, 1)[0] * self.noise))
         self._rotationEulers = self._rotation.to_euler()
+        self._rotationEulers.x = 0.0
 
         throttle_error = self.target_throttle - self._throttle
         throttle_error = throttle_error * self.throttleSpeed * dt
@@ -667,7 +668,7 @@ class parachute:
 
         return force_d
 
-        net_force_dir: Vec3 = force_d + force_g
+        net_force_dir: Vec3 = (force_d) + force_g
         net_force_dir = net_force_dir.normalize()
 
         force_dir_q = Quat(
@@ -733,78 +734,117 @@ class physics_body:
 
         self.use_aero: bool = use_aero
 
-    def apply_torque(self, torque: Vec3) -> None:
-        """apply a torque on the body in the global frame
+    # def apply_torque(self, torque: Vec3) -> None:
+    #     """apply a torque on the body in the global frame
 
-        Args:
-            torque (Vec3): _description_
-        """
+    #     Args:
+    #         torque (Vec3): _description_
+    #     """
+    #     self.rotational_acceleration += (torque / self.moment_of_inertia)
+
+    # def apply_point_torque(self, force: Vec3, point: Vec3) -> None:
+    #     """apply a point torque in the global frame
+
+    #     Args:
+    #         torque (Vec3): the force to apply
+    #         point (Vec3): distance of the force from the center of mass
+    #     """
+    #     tmp = point.cross(force)
+    #     self.apply_torque(tmp)
+
+    # def apply_local_torque(self, torque: Vec3) -> None:
+    #     """apply a torque in the local frame
+
+    #     Args:
+    #         torque (Vec3): the torque to apply
+    #     """
+    #     self.apply_torque(self.rotation.rotate(torque))
+
+    # def apply_local_point_torque(self, force: Vec3, point: Vec3) -> None:
+    #     """apply a point torque in the local frame
+
+    #     Args:
+    #         force (Vec3): the force to apply 
+    #         point (Vec3): the distance of the force from the center of mass
+    #     """
+    #     self.apply_point_torque(self.rotation.rotate(
+    #         force), self.rotation.rotate(point))
+
+    # def apply_force(self, force: Vec3) -> None:
+    #     """apply a force on the body in the global frame
+
+    #     Args:
+    #         force (Vec3): the force to apply
+    #     """
+    #     accel: Vec3 = force / self.mass
+    #     self.acceleration += accel
+
+    # def apply_point_force(self, force: Vec3, point: Vec3) -> None:
+    #     """apply a point force in the global frame, affects rotation and translation
+
+    #     Args:
+    #         force (Vec3): the force to apply
+    #         point (Vec3): the distance of the force from the center of mass
+    #     """
+    #     self.apply_force(force)
+    #     self.apply_point_torque(force, point)
+
+    # def apply_local_force(self, force: Vec3) -> None:
+    #     """apply a force in the local frame
+
+    #     Args:
+    #         force (Vec3): the force to apply
+    #     """
+    #     self.apply_force(self.rotation.rotate(force))
+
+    # def apply_local_point_force(self, force: Vec3, point: Vec3) -> None:
+    #     """apply a point force in the local frame, affects rotation and translation
+
+    #     Args:
+    #         force (Vec3): the force to apply
+    #         point (Vec3): the distance of the force from the bodies center of mass
+    #     """
+    #     self.apply_local_force(self.rotation.rotate(force))
+    #     self.apply_local_point_torque(force, point)
+
+    def apply_torque(self, torque: Vec3):
+        """Applies torque in the global frame"""
         self.rotational_acceleration += (torque / self.moment_of_inertia)
 
-    def apply_point_torque(self, force: Vec3, point: Vec3) -> None:
-        """apply a point torque in the global frame
-
-        Args:
-            torque (Vec3): the force to apply
-            point (Vec3): distance of the force from the center of mass
-        """
-        tmp = point.cross(force)
+    def apply_point_torqe(self, torque: Vec3, point: Vec3):
+        """Applies point torque in the global frame"""
+        tmp = point.cross(torque)
         self.apply_torque(tmp)
 
-    def apply_local_torque(self, torque: Vec3) -> None:
-        """apply a torque in the local frame
-
-        Args:
-            torque (Vec3): the torque to apply
-        """
+    def apply_local_torque(self, torque: Vec3):
+        """Applies torque in the local frame"""
         self.apply_torque(self.rotation.rotate(torque))
 
-    def apply_local_point_torque(self, force: Vec3, point: Vec3) -> None:
-        """apply a point torque in the local frame
+    def apply_local_point_torqe(self, torque: Vec3, point: Vec3):
+        """Applies point torque in the local frame"""
+        self.apply_point_torqe(self.rotation.rotate(
+            torque), self.rotation.rotate(point))
 
-        Args:
-            force (Vec3): the force to apply 
-            point (Vec3): the distance of the force from the center of mass
-        """
-        self.apply_point_torque(self.rotation.rotate(
-            force), self.rotation.rotate(point))
+    def apply_force(self, force: Vec3):
+        """Applies force in global frame"""
+        if isinstance(force, Vec3):
+            accel: Vec3 = force / self.mass
+            self.acceleration += accel
 
-    def apply_force(self, force: Vec3) -> None:
-        """apply a force on the body in the global frame
-
-        Args:
-            force (Vec3): the force to apply
-        """
-        accel: Vec3 = force / self.mass
-        self.acceleration += accel
-
-    def apply_point_force(self, force: Vec3, point: Vec3) -> None:
-        """apply a point force in the global frame, affects rotation and translation
-
-        Args:
-            force (Vec3): the force to apply
-            point (Vec3): the distance of the force from the center of mass
-        """
+    def apply_point_force(self, force: Vec3, point: Vec3):
+        """Applies point force in global frame"""
         self.apply_force(force)
-        self.apply_point_torque(force, point)
+        self.apply_point_torqe(force, point)
 
-    def apply_local_force(self, force: Vec3) -> None:
-        """apply a force in the local frame
-
-        Args:
-            force (Vec3): the force to apply
-        """
+    def apply_local_force(self, force: Vec3):
+        """Applies force in local frame"""
         self.apply_force(self.rotation.rotate(force))
-
-    def apply_local_point_force(self, force: Vec3, point: Vec3) -> None:
-        """apply a point force in the local frame, affects rotation and translation
-
-        Args:
-            force (Vec3): the force to apply
-            point (Vec3): the distance of the force from the bodies center of mass
-        """
+    
+    def apply_local_point_force(self, force: Vec3, point: Vec3):
+        """Applies point force in local frame"""
         self.apply_local_force(self.rotation.rotate(force))
-        self.apply_local_point_torque(force, point)
+        self.apply_local_point_torqe(force, point)
+
 
     def update(self, dt: float) -> None:
         """updates the physics body for the given change in time
