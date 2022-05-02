@@ -45,10 +45,10 @@ def main():
 
         target_vector: Vec3 = Vec3(1.0, 0.0, 0.0)
 
-        if simulation.time > 1.0:
-            target_vector.y += 0.2
+        if simulation.time > 0.5:
+            target_vector.y += 0.3
 
-        target_vector = rocket_1.body.rotation.conjugate().rotate(target_vector.normalize)
+        target_vector = rocket_1.body.rotation.conjugate().rotate(target_vector.normalize())
 
         rotVel = rocket_1.body.rotation.conjugate().rotate(rocket_1.body.rotational_velocity)
 
