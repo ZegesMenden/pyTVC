@@ -176,7 +176,7 @@ class plotter:
         self.data_descriptions = self.header.split(',')
         self.viewer.allDataDescriptions = self.data_descriptions
 
-    def create_2d_graph(self, graph_points: list, x_desc: str = "", y_desc: str = "", annotate: bool = False):
+    def create_2d_graph(self, graph_points: list, x_desc: str = "", y_desc: str = "", annotate: bool = False, posArg: int = 0):
         """Creates a 2-dimensional graph from the provided data descriptions.
 
         Params:
@@ -189,9 +189,15 @@ class plotter:
 
         annotate - set true to show a color code for all lines on the graph."""
 
-        self.n_plots += 1
-        plt.figure(self.n_plots)
-
+        if posArg != 0:
+            if self.n_plots == 0:
+                plt.figure(figsize=(16, 8))
+                self.n_plots += 1
+            plt.subplot(posArg)
+        else:
+            self.n_plots += 1
+            plt.figure(self.n_plots)
+        
         plot_points = self.viewer.graph_from_csv(graph_points, self.file_name)
 
         for index, dataPoint in enumerate(plot_points):
@@ -206,7 +212,7 @@ class plotter:
         plt.xlabel(x_desc)
         plt.ylabel(y_desc)
 
-    def create_3d_graph(self, graph_points: list, size: float = 0.0, color: str = 'Blues'):
+    def create_3d_graph(self, graph_points: list, size: float = 0.0, color: str = 'Blues', posArg: int = 0):
         """Creates a 3 dimensional graph from the provided data descriptions
 
         Params:
@@ -218,21 +224,28 @@ class plotter:
         if len(graph_points) != 3:
             raise IndexError("graph_points must have 3 data points!")
 
-        self.n_plots += 1
-        plt.figure(self.n_plots)
-
         plot_points = self.viewer.graph_from_csv(graph_points, self.file_name)
 
-        ax = plt.axes(projection='3d')
+        if posArg != 0:
+            if self.n_plots == 0:
+                plt.figure(figsize=(16, 8))
+                self.n_plots += 1
+            plt.subplot(posArg, projection='3d', xlim=(-size, size), ylim=(-size, size), zlim=(-0, size))
+            plt.plot(plot_points[2], plot_points[1], plot_points[0])
+        else:
+            self.n_plots += 1
+            plt.figure(self.n_plots)
 
-        if size != 0.0:
+            ax = plt.axes(projection='3d')
 
-            ax.set_xlim3d(-size, size)
-            ax.set_ylim3d(-size, size)
-            ax.set_zlim3d(0, size)
+            if size != 0.0:
 
-        ax.scatter3D(plot_points[2], plot_points[1],
-                     plot_points[0], c=plot_points[2], cmap=color)
+                ax.set_xlim3d(-size, size)
+                ax.set_ylim3d(-size, size)
+                ax.set_zlim3d(0, size)
+
+            ax.scatter3D(plot_points[2], plot_points[1],
+                        plot_points[0], c=plot_points[2], cmap=color)
 
     def create_3d_animation(self, graph_points: list, size: float, time: float = 5.0, color: str = 'Blues'):
         
