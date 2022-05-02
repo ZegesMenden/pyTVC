@@ -109,5 +109,39 @@ class test_Quat_math(unittest.TestCase):
         self.assertAlmostEqual(e.z, et.z, 4)
 
 
+class test_body_math(unittest.TestCase):
+
+    def test_rotation(self):
+
+        body: physics_body = physics_body()
+
+        for i in range(999):
+            body.apply_torque(Vec3(0.0, 0.0, 1))
+            body.update(0.001)
+            body.clear()
+        
+        self.assertAlmostEqual(body.rotation_euler.z, 0.5, 1)
+
+        for i in range(999):
+            body.apply_torque(Vec3(0.0, 0.0, -1.0))
+            body.update(0.001)
+            body.clear()
+
+        self.assertAlmostEqual(body.rotation_euler.z, 1.0, 1)
+
+    def test_aero_forces(self):
+
+        body: physics_body = physics_body(position=Vec3(1000.0, 0.0, 0.0), velocity=Vec3(-1.0, 0.0, 0.0), drag_coefficient_forewards=1.0, drag_coefficient_sideways=10.0, ref_area=1.0, use_aero=True)
+
+        body.update(0.01)
+
+        self.assertAlmostEqual(body.drag_force, Vec3(0.6125, 0.0, 0.0), 4)
+
+        body.velocity = Vec3(-100.0, 0.0, 0.0)
+
+        body.update(0.01)
+        if isinstance(body.drag_force, Vec3):
+            self.assertAlmostEqual(body.drag_force, Vec3(6125.0, 0.0, 0.0), 4)
+        
 if __name__ == '__main__':
     unittest.main()
