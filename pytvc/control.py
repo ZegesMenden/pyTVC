@@ -28,7 +28,7 @@ class PID:
 
         self.output: float = 0.0
     
-    def update(self, input: float, dt: float = 1.0) -> None:
+    def update(self, input: float, dt: float = 1.0, input_derivitive: float = 0.0) -> None:
         error = self.setpoint - input
 
         if self.i > self.i_max:
@@ -38,6 +38,9 @@ class PID:
         
         d = (error - self.last_error) / dt
         self.last_error = error
+
+        if input_derivitive != 0.0:
+            d = input_derivitive
         
         self.output = self.Kp * error + self.Ki * self.i + self.Kd * d
 
@@ -112,8 +115,12 @@ class torque_PID(PID):
         self.inertia = inertia
         self.lever_arm = lever_arm
 
-    def update(self, input: float, dt: float = 1.0, force: float = 1.0) -> None:
-        super().update(input, dt)
+    def update(self, input: float, dt: float = 1.0, force: float = 1.0, input_derivitive: float = 0.0) -> None:
+        if input_derivitive == 0.0:
+            super().update(input, dt)
+        else:
+            super().update(input, dt, input_derivitive)    
+
         if force != 0.0:
             calcval = super().getOutput() * self.inertia / force / self.lever_arm
             if abs(calcval) > 1.0:
