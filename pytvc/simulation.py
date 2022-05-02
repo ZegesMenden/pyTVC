@@ -33,6 +33,7 @@ class rocket:
         self.name = name
         self.time = 0.0
         self.time_step = time_step
+        self.apogee = 0.0
 
         # components
         self._n_tvc_mounts: int = 0
@@ -183,6 +184,9 @@ class rocket:
         self.engine_mass = tmp_m
         
         self.body.update(self.time_step)
+
+        if self.body.position.x > self.apogee:
+            self.apogee = self.body.position.x
         
         if "update" in self._function_registry:
             self._function_registry["update"]()
@@ -300,22 +304,27 @@ wind speed: {round(self.wind, 2)}""")
 
         if self.plot_data:
 
+            print("")
+
             for r in self._rockets:
-                pTmp: plotter = plotter()
-                pTmp.read_header(f"{self._rockets[r].name}_log.csv")
+                _rocket: rocket = self._rockets[r]
+                if isinstance(_rocket, rocket):
 
-                pTmp.create_2d_graph(['time', 'position_x', 'position_y', 'position_z'], "x", "y", True)
-                pTmp.create_2d_graph(['time', 'velocity_x', 'velocity_y', 'velocity_z'], "x", "y", True)
+                    pTmp: plotter = plotter()
+                    pTmp.read_header(f"{_rocket.name}_log.csv")
 
-                for tvc in self._rockets[r]._tvc_mounts:
-                    t = self._rockets[r]._tvc_mounts[tvc]["mount"]
-                    if isinstance(t, TVC):
-                        pTmp.create_2d_graph(['time', 'rotation_x', 'rotation_y', 'rotation_z', f'{t.name}_position_y', f'{t.name}_position_z', f'{t.name}_setpoint_y', f'{t.name}_setpoint_z'], "x", "y", True)
-                    else:
-                        pTmp.create_2d_graph(['time', 'rotation_x', 'rotation_y', 'rotation_z'], "x", "y", True)
-                pTmp.create_2d_graph(['time', 'acceleration_x_world', 'acceleration_y_world', 'acceleration_z_world'], "x", "y", True)
+                    pTmp.create_2d_graph(['time', 'position_x', 'position_y', 'position_z', 'velocity_x', 'velocity_y', 'velocity_z', 'acceleration_x_world', 'acceleration_y_world', 'acceleration_z_world'], "x", "y", True, posArg=221)
+                    # pTmp.create_2d_graph(['time', 'velocity_x', 'velocity_y', 'velocity_z'], "x", "y", True)
+                    pTmp.create_3d_graph(['position_x', 'position_y', 'position_z'], size=_rocket.apogee, posArg=122)
+                    for tvc in _rocket._tvc_mounts:
+                        t = _rocket._tvc_mounts[tvc]["mount"]
+                        if isinstance(t, TVC):
+                            pTmp.create_2d_graph(['time', 'rotation_x', 'rotation_y', 'rotation_z', f'{t.name}_position_y', f'{t.name}_position_z', f'{t.name}_setpoint_y', f'{t.name}_setpoint_z'], "x", "y", True, posArg=223)
+                        else:
+                            pTmp.create_2d_graph(['time', 'rotation_x', 'rotation_y', 'rotation_z'], "x", "y", True)
+                    # pTmp.create_2d_graph(['time', 'acceleration_x_world', 'acceleration_y_world', 'acceleration_z_world'], "x", "y", True)
 
-                
-                pTmp.show_all_graphs()
+                    
+                    pTmp.show_all_graphs()
 
         return None
