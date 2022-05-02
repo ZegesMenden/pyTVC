@@ -16,7 +16,7 @@ def progress_bar(n, maxn) -> str:
             progress += ' ' 
         else: 
             progress += "="
-    return (f"""[{progress}]\nProgress: {round((n/maxn)*100, 2)}%""")
+    return (f"""[{progress}] Progress: {round((n/maxn)*100, 2)}%""")
 
 class data_logger:
     def __init__(self):
@@ -150,8 +150,8 @@ class data_visualizer:
                         dataOut.append([])
 
                 if index > 0:
-                    for index, point in enumerate(dataOut):
-                        point.append(float(row[pointsToLog[index]]))
+                    for idx, point in enumerate(dataOut):
+                        point.append(float(row[pointsToLog[idx]]))
                 logList = []
 
         return dataOut
