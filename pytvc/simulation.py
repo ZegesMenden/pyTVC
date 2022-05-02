@@ -229,13 +229,14 @@ class rocket:
 
 class sim:
     
-    def __init__(self, time_step: float = 0.001, time_end: float = 60.0, rockets: dict = {}, print_times: bool = True, print_info: bool = True, wind: Vec3 = Vec3(), sim_wind: bool = False, random_wind: bool = False) -> None:
+    def __init__(self, plot_data: bool = True, time_step: float = 0.001, time_end: float = 60.0, rockets: dict = {}, print_times: bool = True, print_info: bool = True, wind: Vec3 = Vec3(), sim_wind: bool = False, random_wind: bool = False) -> None:
         self.time: float = 0.0
         self.time_step = time_step
         self.time_end = time_end
         self.nRockets = 0
         self._rockets = {}
 
+        self.plot_data = plot_data
         self.print_times = print_times
         self.print_info = print_info
 
@@ -292,29 +293,29 @@ wind speed: {round(self.wind, 2)}""")
 
             self.time += self.time_step
             if self.time % 0.5 < self.time_step:
-                print(progress_bar(self.time, self.time_end), end="\033[F")
+                print("Running simulation " + progress_bar(self.time, self.time_end), end="\r")
                 
             for r in self._rockets:
                 self._rockets[r]._update()
 
-        print("\n")
+        if self.plot_data:
 
-        for r in self._rockets:
-            pTmp: plotter = plotter()
-            pTmp.read_header(f"{self._rockets[r].name}_log.csv")
+            for r in self._rockets:
+                pTmp: plotter = plotter()
+                pTmp.read_header(f"{self._rockets[r].name}_log.csv")
 
-            pTmp.create_2d_graph(['time', 'position_x', 'position_y', 'position_z'], "x", "y", True)
-            pTmp.create_2d_graph(['time', 'velocity_x', 'velocity_y', 'velocity_z'], "x", "y", True)
+                pTmp.create_2d_graph(['time', 'position_x', 'position_y', 'position_z'], "x", "y", True)
+                pTmp.create_2d_graph(['time', 'velocity_x', 'velocity_y', 'velocity_z'], "x", "y", True)
 
-            for tvc in self._rockets[r]._tvc_mounts:
-                t = self._rockets[r]._tvc_mounts[tvc]["mount"]
-                if isinstance(t, TVC):
-                    pTmp.create_2d_graph(['time', 'rotation_x', 'rotation_y', 'rotation_z', f'{t.name}_position_y', f'{t.name}_position_z', f'{t.name}_setpoint_y', f'{t.name}_setpoint_z'], "x", "y", True)
-                else:
-                    pTmp.create_2d_graph(['time', 'rotation_x', 'rotation_y', 'rotation_z'], "x", "y", True)
-            pTmp.create_2d_graph(['time', 'acceleration_x_world', 'acceleration_y_world', 'acceleration_z_world'], "x", "y", True)
+                for tvc in self._rockets[r]._tvc_mounts:
+                    t = self._rockets[r]._tvc_mounts[tvc]["mount"]
+                    if isinstance(t, TVC):
+                        pTmp.create_2d_graph(['time', 'rotation_x', 'rotation_y', 'rotation_z', f'{t.name}_position_y', f'{t.name}_position_z', f'{t.name}_setpoint_y', f'{t.name}_setpoint_z'], "x", "y", True)
+                    else:
+                        pTmp.create_2d_graph(['time', 'rotation_x', 'rotation_y', 'rotation_z'], "x", "y", True)
+                pTmp.create_2d_graph(['time', 'acceleration_x_world', 'acceleration_y_world', 'acceleration_z_world'], "x", "y", True)
 
-            
-            pTmp.show_all_graphs()
+                
+                pTmp.show_all_graphs()
 
         return None
