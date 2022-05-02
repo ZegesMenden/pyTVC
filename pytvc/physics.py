@@ -385,7 +385,7 @@ class Quat:
             tmp = self * tmp * self.conjugate()
             return Vec3(tmp.x, tmp.y, tmp.z)
         else:
-            raise NotImplementedError
+            raise NotImplementedError(f"cannot rotate type {vector.__class__}")
 
     def fractional(self, a) -> Quat:
         """Return the fractional of the Quat."""
