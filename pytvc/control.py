@@ -116,6 +116,14 @@ class torque_PID(PID):
         self.lever_arm = lever_arm
 
     def update(self, input: float, dt: float = 1.0, force: float = 1.0, input_derivitive: float = 0.0) -> None:
+        """updates the PID controller
+
+        Args:
+            input (float): the input to the controller
+            dt (float, optional): the time between this call and the last call of the PID controller. Defaults to 1.0.
+            force (float, optional): the force that the controller is changing. Defaults to 1.0.
+            input_derivitive (float, optional): an override of the built in derivitive. Defaults to 0.0.
+        """
         if input_derivitive == 0.0:
             super().update(input, dt)
         else:

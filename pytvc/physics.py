@@ -671,6 +671,8 @@ class parachute:
 
         return force_d
 
+        # removed for now because it is not working
+
         net_force_dir: Vec3 = (force_d) + force_g
         net_force_dir = net_force_dir.normalize()
 
