@@ -37,8 +37,8 @@ def main():
         noise=0.001
     )
 
-    PID_y: torque_PID = torque_PID(Kp=25, Ki=0.0, Kd=15, inertia=rocket_1.body.moment_of_inertia.y, lever_arm=0.2)
-    PID_z: torque_PID = torque_PID(Kp=25, Ki=0.0, Kd=15, inertia=rocket_1.body.moment_of_inertia.z, lever_arm=0.2)
+    PID_y: torque_PID = torque_PID(Kp=25, Ki=0.0, Kd=10, inertia=rocket_1.body.moment_of_inertia.y, lever_arm=0.2)
+    PID_z: torque_PID = torque_PID(Kp=25, Ki=0.0, Kd=10, inertia=rocket_1.body.moment_of_inertia.z, lever_arm=0.2)
 
     @tvc_1.update_func
     def tvc1_update():
@@ -46,14 +46,14 @@ def main():
         target_vector: Vec3 = Vec3(1.0, 0.0, 0.0)
 
         if simulation.time > 0.5:
-            target_vector.y += 0.3
+            target_vector.y += 0.1
 
         target_vector = rocket_1.body.rotation.conjugate().rotate(target_vector.normalize())
 
         rotVel = rocket_1.body.rotation.conjugate().rotate(rocket_1.body.rotational_velocity)
 
-        PID_y.update(np.arctan2(-target_vector.z, target_vector.x), tvc_1.update_delay, rocket_1.motor_thrust, rotVel.y)
-        PID_z.update(np.arctan2(target_vector.y, target_vector.x), tvc_1.update_delay, rocket_1.motor_thrust, rotVel.z)
+        PID_y.update(np.arctan2(-target_vector.z, target_vector.x) * PID_z.getOutput()*(180/np.pi), tvc_1.update_delay, rocket_1.motor_thrust, rotVel.y)
+        PID_z.update(np.arctan2(target_vector.y, target_vector.x) * PID_z.getOutput()*(180/np.pi), tvc_1.update_delay, rocket_1.motor_thrust, rotVel.z)
 
         return Vec3(0.0, PID_y.getOutput()*(180/np.pi), PID_z.getOutput()*(180/np.pi))
 
