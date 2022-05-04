@@ -1,7 +1,3 @@
-# external libraries
-import numpy as np
-
-# internal libraries
 import pytvc.control
 import pytvc.simulation
 import pytvc.data
