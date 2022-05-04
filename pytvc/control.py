@@ -1,10 +1,11 @@
 from pytvc.physics import Vec3
 import numpy as np
 
+
 class PID:
 
     """PID controller class
-    
+
     for more information on the PID controller, see:
     https://en.wikipedia.org/wiki/PID_controller"""
 
@@ -27,7 +28,7 @@ class PID:
         self.last_error: float = 0.0
 
         self.output: float = 0.0
-    
+
     def update(self, input: float, dt: float = 1.0, input_derivitive: float = 0.0) -> None:
         error = self.setpoint - input
 
@@ -35,19 +36,19 @@ class PID:
             self.i = self.i_max
         elif self.i < -self.i_max:
             self.i = -self.i_max
-        
+
         d = (error - self.last_error) / dt
         self.last_error = error
 
         if input_derivitive != 0.0:
             d = input_derivitive
-        
-        self.output = self.Kp * error + self.Ki * self.i + self.Kd * d
+
+        self.output = (self.Kp * error) + (self.Ki * self.i) + (self.Kd * d)
 
     def reset(self) -> None:
         self.i = 0.0
         self.last_error = 0.0
-    
+
     def setSetpoint(self, setpoint: float) -> None:
         """setSetpoint sets the setpoint of the PID controller
 
@@ -55,7 +56,7 @@ class PID:
             setpoint (float): setpoint of the PID controller
         """
         self.setpoint = setpoint
-    
+
     def setKp(self, Kp: float) -> None:
         """setKp sets the proportional gain of the PID controller
 
@@ -63,7 +64,7 @@ class PID:
             Kp (float): proportional gain of the PID controller
         """
         self.Kp = Kp
-    
+
     def setKi(self, Ki: float) -> None:
         """setKi sets the integral gain of the PID controller
 
@@ -71,7 +72,7 @@ class PID:
             Ki (float): integral gain of the PID controller
         """
         self.Ki = Ki
-    
+
     def setKd(self, Kd: float) -> None:
         """setKd sets the derivative gain of the PID controller
 
@@ -79,7 +80,7 @@ class PID:
             Kd (float): derivative gain of the PID controller
         """
         self.Kd = Kd
-    
+
     def setImax(self, i_max: float) -> None:
         """setImax set the maximum integral value for the PID controller
 
@@ -87,7 +88,7 @@ class PID:
             i_max (float): maximum value for the integral
         """
         self.i_max = i_max
-    
+
     def getOutput(self) -> float:
         """getOutput returns the output of the PID controller
 
@@ -95,6 +96,7 @@ class PID:
             float: output of the PID controller
         """
         return self.output
+
 
 class torque_PID(PID):
 
@@ -119,10 +121,11 @@ class torque_PID(PID):
         if input_derivitive == 0.0:
             super().update(input, dt)
         else:
-            super().update(input, dt, input_derivitive)    
+            super().update(input, dt, input_derivitive)
 
         if force != 0.0:
-            calcval = super().getOutput() * self.inertia / force / self.lever_arm
+            calcval = ((super().getOutput() * self.inertia) / force) / self.lever_arm
+            print(calcval)
             if abs(calcval) > 1.0:
                 self.output = 0.0
             else:
