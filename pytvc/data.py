@@ -8,15 +8,23 @@ import csv
 
 # from pytvc.physics import Vec3, Quat
 
+
 def progress_bar(n, maxn) -> str:
+    
     progress: str = ""
     end = int(n/maxn*50)
-    for i in range(50): 
-        if i > end: 
-            progress += ' ' 
-        else: 
-            progress += "="
+    
+    for i in range(50):
+        if i > end:
+            progress += ' '
+        else:
+            if i+1 > end:
+                progress += '>'
+            else:
+                progress += "="
+
     return (f"""[{progress}] Progress: {round((n/maxn)*100, 2)}%""")
+
 
 class data_logger:
     def __init__(self):
@@ -124,6 +132,7 @@ class data_logger:
         else:
             raise IndexError("datapoint not initialized")
 
+
 class data_visualizer:
     def __init__(self):
         self.allDataDescriptions = []
@@ -155,6 +164,7 @@ class data_visualizer:
                 logList = []
 
         return dataOut
+
 
 class plotter:
 
@@ -197,7 +207,7 @@ class plotter:
         else:
             self.n_plots += 1
             plt.figure(self.n_plots)
-        
+
         plot_points = self.viewer.graph_from_csv(graph_points, self.file_name)
 
         for index, dataPoint in enumerate(plot_points):
@@ -208,7 +218,7 @@ class plotter:
                 else:
                     plt.plot(plot_points[0], dataPoint)
         if annotate:
-           plt.legend()
+            plt.legend()
         plt.xlabel(x_desc)
         plt.ylabel(y_desc)
 
@@ -230,7 +240,8 @@ class plotter:
             if self.n_plots == 0:
                 plt.figure(figsize=(16, 8))
                 self.n_plots += 1
-            plt.subplot(posArg, projection='3d', xlim=(-size, size), ylim=(-size, size), zlim=(-0, size))
+            plt.subplot(posArg, projection='3d', xlim=(-size, size),
+                        ylim=(-size, size), zlim=(-0, size))
             plt.plot(plot_points[2], plot_points[1], plot_points[0])
         else:
             self.n_plots += 1
@@ -245,16 +256,17 @@ class plotter:
                 ax.set_zlim3d(0, size)
 
             ax.scatter3D(plot_points[2], plot_points[1],
-                        plot_points[0], c=plot_points[2], cmap=color)
+                         plot_points[0], c=plot_points[2], cmap=color)
 
     def create_3d_animation(self, graph_points: list, size: float, time: float = 5.0, color: str = 'Blues'):
-        
+
         self.n_plots += 1
         fig = plt.figure(self.n_plots)
-        
+
         ax = p3.Axes3D(fig)
 
-        plot_position = self.viewer.graph_from_csv(graph_points, self.file_name)
+        plot_position = self.viewer.graph_from_csv(
+            graph_points, self.file_name)
 
         ax.set_xlim3d(-size, size)
         ax.set_ylim3d(-size, size)
@@ -265,14 +277,15 @@ class plotter:
             xcur = dataSet[2][num] - 1
             numpog = 0
             for index, x in enumerate(dataSet[2]):
-                if x >= xcur-0.1 and x <= xcur -0.1:
+                if x >= xcur-0.1 and x <= xcur - 0.1:
                     numpog = index
             line.set_data(dataSet[0:2, num-20:num])
             line.set_3d_properties(dataSet[2, num-20:num])
             return line
 
         # # THE DATA POINTS
-        t = np.array(plot_position[1]) # This would be the z-axis ('t' means time here)
+        # This would be the z-axis ('t' means time here)
+        t = np.array(plot_position[1])
         x = np.array(plot_position[2])
         y = np.array(plot_position[3])
 
@@ -280,7 +293,8 @@ class plotter:
         dataSet = np.array([x, y, t])
 
         # NOTE: Can't pass empty arrays into 3d version of plot()
-        line = plt.plot(dataSet[0], dataSet[1], dataSet[2], lw=2, c='g')[0] # For line plot
+        line = plt.plot(dataSet[0], dataSet[1], dataSet[2], lw=2, c='g')[
+            0]  # For line plot
 
         ax.set_xlabel('y')
         ax.set_ylabel('z')
@@ -288,11 +302,14 @@ class plotter:
         ax.set_title('Trajectory')
 
         # Creating the Animation object
-        line_ani = animation.FuncAnimation(fig, func, frames=numDataPoints, fargs=(dataSet,line), interval=(time/numDataPoints), blit=False)
+        line_ani = animation.FuncAnimation(fig, func, frames=numDataPoints, fargs=(
+            dataSet, line), interval=(time/numDataPoints), blit=False)
         plt.show()
+
     def show_all_graphs(self):
         """Displays all graphs."""
         plt.show()
+
 
 class rocket_motor:
 
@@ -309,18 +326,19 @@ class rocket_motor:
         self._ignitionTime: float = ignitionTime
         self._timeStep: int = timeStep
         self._data = []
-        
+
         if filePath != "":
-            
+
             tree = ET.parse(filePath)
             root = tree.getroot()
-            
+
             eng_data = root[0][0][1]
-            
+
             lPoint = [0, 0, 0]
-            
+
             for data in eng_data:
-                dataTmp = [float(data.attrib['t']), float(data.attrib['f']), float(data.attrib['m'])]
+                dataTmp = [float(data.attrib['t']), float(
+                    data.attrib['f']), float(data.attrib['m'])]
                 if dataTmp[0] > 0:
                     thrustDiff = dataTmp[1] - lPoint[1]
                     massDiff = dataTmp[2] - lPoint[2]
