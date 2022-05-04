@@ -5,6 +5,7 @@ import os
 
 RAD2DEG = 180.0/np.pi
 
+
 class rocket:
 
     def __init__(self, dry_mass: float = 1.0, time_step: float = 0.001, name: str = "", log_values: bool = False, log_frequency: int = 50, print_info: bool = False, do_aero: bool = True, drag_coeff_forewards: float = 0.0, drag_coeff_sideways: float = 0.0, refence_area: float = 0.0, cp_location: Vec3 = Vec3(), moment_of_inertia: Vec3 = Vec3(1.0, 1.0, 1.0), friction_coeff: float = 0.0) -> None:
@@ -59,6 +60,9 @@ class rocket:
             friction_coeff=friction_coeff
         )
 
+        # user defined data points
+        self._data_points = []
+
         # function registry for update and setup
         self._function_registry = {}
 
@@ -69,7 +73,16 @@ class rocket:
     def update(self, func):
         self._function_registry["update"] = func
         return func
-    
+
+    def add_data_point(self, name: str, func: callable):
+        """add_data_point add a data point to the rocket's datalogger
+
+        Args:
+            name (str): name of the data
+            func (callable): function to call to get the data
+        """
+        self._data_points.append({"name": name, "func": func})
+
     def add_tvc_mount(self, tvc_mount: TVC, position: Vec3) -> None:
         """adds a TVC mount to the rocket
 
@@ -82,16 +95,18 @@ class rocket:
             Exception: _description_
             Exception: _description_
         """
-        
+
         if isinstance(tvc_mount, TVC):
             self._n_tvc_mounts += 1
             if tvc_mount.name == "":
-                tvc_mount.name = f"TVC{self._n_tvc_mounts}" 
-            
+                tvc_mount.name = f"TVC{self._n_tvc_mounts}"
+
             if tvc_mount.name in self._tvc_mounts:
-                raise Exception(f"TVC mount with name {tvc_mount.name} already exists")
+                raise Exception(
+                    f"TVC mount with name {tvc_mount.name} already exists")
             else:
-                self._tvc_mounts[tvc_mount.name] = {"mount": tvc_mount, "position": position}
+                self._tvc_mounts[tvc_mount.name] = {
+                    "mount": tvc_mount, "position": position}
         else:
             raise Exception("TVC mount must be of type TVC")
 
@@ -100,11 +115,12 @@ class rocket:
         if isinstance(chute, parachute):
             self._n_parachutes += 1
             if chute.name == "":
-                chute.name = f"parachute_{self._n_parachutes}" 
-            self._parachutes[chute.name] = {"parachute": chute, "position": position}
+                chute.name = f"parachute_{self._n_parachutes}"
+            self._parachutes[chute.name] = {
+                "parachute": chute, "position": position}
         else:
             raise Exception("Parachute must be of type parachute")
-    
+
     def _initialize(self) -> None:
         if self.log_values:
             if self.print_info:
@@ -140,7 +156,8 @@ class rocket:
                 if isinstance(t, TVC):
                     if t.log_data:
                         if self.print_info:
-                            print(f"    {self.name}: initializing TVC mount {t.name} data logger")
+                            print(
+                                f"    {self.name}: initializing TVC mount {t.name} data logger")
                         self.datalogger.add_datapoint(f"{t.name}_position_y")
                         self.datalogger.add_datapoint(f"{t.name}_position_z")
                         self.datalogger.add_datapoint(f"{t.name}_throttle")
@@ -149,17 +166,24 @@ class rocket:
                         self.datalogger.add_datapoint(f"{t.name}_error_y")
                         self.datalogger.add_datapoint(f"{t.name}_error_z")
 
+            if len(self._data_points) != 0:
+                for dp in self._data_points:
+                    if self.print_info:
+                        print(f"    {self.name}: adding data point {dp['name']}")
+                    self.datalogger.add_datapoint(dp["name"])
+            
+            self.datalogger.fileName = f"{self.name}_log.csv"
+            self.datalogger.initialize_csv(True, True)
+            
+            if self.print_info:
+                print(f"    {self.name}: data logger initialized")
+
         if "setup" in self._function_registry:
             if self.print_info:
                 print(f"    {self.name}: running user setup function")
-            self._function_registry["setup"]()
-
-        if self.log_values:        
-            self.datalogger.fileName = f"{self.name}_log.csv"
-            self.datalogger.initialize_csv(True, True)
+            self._function_registry["setup"]()           
 
     def _update(self) -> None:
-
         """update the body's simulation by one time step"""
 
         self.time += self.time_step
@@ -173,21 +197,23 @@ class rocket:
             tm, f = self._tvc_mounts[mount]["mount"].get_values(self.time)
             tmp_m += tm*0.001
             self.motor_thrust += f.length()
-            self.body.apply_local_point_force(f, self._tvc_mounts[mount]["position"])
+            self.body.apply_local_point_force(
+                f, self._tvc_mounts[mount]["position"])
 
         if self.body.position.x > 0.01:
             for p in self._parachutes:
                 if self._parachutes[p]["parachute"]._check(self.body.position, self.body.velocity):
-                    self.body.apply_force(self._parachutes[p]["parachute"].calculate_forces(self.body.mass, self.body.velocity))#, self._parachutes[p]["position"])
+                    self.body.apply_force(self._parachutes[p]["parachute"].calculate_forces(
+                        self.body.mass, self.body.velocity))  # , self._parachutes[p]["position"])
 
         self.body.mass = self.dry_mass + tmp_m
         self.engine_mass = tmp_m
-        
+
         self.body.update(self.time_step)
 
         if self.body.position.x > self.apogee:
             self.apogee = self.body.position.x
-        
+
         if "update" in self._function_registry:
             self._function_registry["update"]()
 
@@ -222,17 +248,24 @@ class rocket:
                     self.datalogger.record_variable(f"{t.name}_position_y", t._rotationEulers.y * RAD2DEG)
                     self.datalogger.record_variable(f"{t.name}_position_z", t._rotationEulers.z * RAD2DEG)
                     self.datalogger.record_variable(f"{t.name}_throttle", t._throttle)
-                    self.datalogger.record_variable(f"{t.name}_setpoint_y", t.targetEulers.y * RAD2DEG) 
-                    self.datalogger.record_variable(f"{t.name}_setpoint_z", t.targetEulers.z * RAD2DEG) 
+                    self.datalogger.record_variable(f"{t.name}_setpoint_y", t.targetEulers.y * RAD2DEG)
+                    self.datalogger.record_variable(f"{t.name}_setpoint_z", t.targetEulers.z * RAD2DEG)
                     self.datalogger.record_variable(f"{t.name}_error_y", 0.0)
                     self.datalogger.record_variable(f"{t.name}_error_z", 0.0)
+            
+            if len(self._data_points) != 0:
+                for dp in self._data_points:
+                    self.datalogger.record_variable(dp["name"], dp["func"]())
+            
             self.datalogger.save_data(True)
             self.last_log_time = self.time
-            
+
         self.body.clear()
 
+
 class sim:
-    
+    """ simulation class"""
+
     def __init__(self, plot_data: bool = True, time_step: float = 0.001, time_end: float = 60.0, rockets: dict = {}, print_times: bool = True, print_info: bool = True, wind: Vec3 = Vec3(), sim_wind: bool = False, random_wind: bool = False) -> None:
         self.time: float = 0.0
         self.time_step = time_step
@@ -247,9 +280,10 @@ class sim:
         self.use_wind = sim_wind
 
         if random_wind:
-            self.wind: Vec3 = Vec3(0.0, np.random.normal(0.0, 0.5, 1)[0], np.random.normal(0.0, 0.5, 1)[0])
+            self.wind: Vec3 = Vec3(0.0, np.random.normal(0.0, 0.5, 1)[
+                                   0], np.random.normal(0.0, 0.5, 1)[0])
         else:
-            self.wind: Vec3 = wind        
+            self.wind: Vec3 = wind
 
         for r in rockets:
             if isinstance(r, rocket):
@@ -257,7 +291,7 @@ class sim:
                     r.name = "rocket" + str(self.nRockets)
                 if sim_wind:
                     r.body.wind_speed = self.wind
-                self._rockets[r.name] = r              
+                self._rockets[r.name] = r
                 self.nRockets += 1
             else:
                 raise TypeError("Rocket must be a rocket class")
@@ -267,7 +301,7 @@ class sim:
         if isinstance(r, rocket):
             if r.name == "":
                 r.name = "rocket" + str(self.nRockets)
-            self._rockets[r.name] = r              
+            self._rockets[r.name] = r
             self.nRockets += 1
         else:
             raise TypeError("Rocket must be a rocket class")
@@ -297,8 +331,9 @@ wind speed: {round(self.wind, 2)}""")
 
             self.time += self.time_step
             if self.time % 0.5 < self.time_step:
-                print("Running simulation " + progress_bar(self.time, self.time_end), end="\r")
-                
+                print("Running simulation " +
+                      progress_bar(self.time, self.time_end+self.time_step), end="\r")
+
             for r in self._rockets:
                 self._rockets[r]._update()
 
@@ -313,18 +348,30 @@ wind speed: {round(self.wind, 2)}""")
                     pTmp: plotter = plotter()
                     pTmp.read_header(f"{_rocket.name}_log.csv")
 
-                    pTmp.create_2d_graph(['time', 'position_x', 'position_y', 'position_z', 'velocity_x', 'velocity_y', 'velocity_z', 'acceleration_x_world', 'acceleration_y_world', 'acceleration_z_world'], "x", "y", True, posArg=221)
+                    pTmp.create_2d_graph(['time', 'position_x', 'position_y', 'position_z', 'velocity_x', 'velocity_y', 'velocity_z',
+                                         'acceleration_x_world', 'acceleration_y_world', 'acceleration_z_world'], "x", "y", True, posArg=221)
                     # pTmp.create_2d_graph(['time', 'velocity_x', 'velocity_y', 'velocity_z'], "x", "y", True)
-                    pTmp.create_3d_graph(['position_x', 'position_y', 'position_z'], size=_rocket.apogee, posArg=122)
+                    pTmp.create_3d_graph(
+                        ['position_x', 'position_y', 'position_z'], size=_rocket.apogee, posArg=122)
                     for tvc in _rocket._tvc_mounts:
                         t = _rocket._tvc_mounts[tvc]["mount"]
                         if isinstance(t, TVC):
-                            pTmp.create_2d_graph(['time', 'rotation_x', 'rotation_y', 'rotation_z', f'{t.name}_position_y', f'{t.name}_position_z', f'{t.name}_setpoint_y', f'{t.name}_setpoint_z'], "x", "y", True, posArg=223)
+                            pTmp.create_2d_graph(['time', 'rotation_x', 'rotation_y', 'rotation_z',
+                                                 f'{t.name}_position_y', f'{t.name}_position_z', f'{t.name}_setpoint_y', f'{t.name}_setpoint_z'], "x", "y", True, posArg=223)
                         else:
-                            pTmp.create_2d_graph(['time', 'rotation_x', 'rotation_y', 'rotation_z'], "x", "y", True)
+                            pTmp.create_2d_graph(
+                                ['time', 'rotation_x', 'rotation_y', 'rotation_z'], "x", "y", True)
                     # pTmp.create_2d_graph(['time', 'acceleration_x_world', 'acceleration_y_world', 'acceleration_z_world'], "x", "y", True)
 
-                    
+                    # if len(_rocket._data_points) != 0:
+                    #     l: list = ['time']
+                    #     for dp in _rocket._data_points:
+                    #         l.append(dp["name"])
+
+                    #     print(l)
+
+                    pTmp.create_2d_graph(['T'], "x", "y", False)
+
                     pTmp.show_all_graphs()
 
         return None
