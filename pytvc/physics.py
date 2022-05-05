@@ -667,18 +667,16 @@ class parachute:
         # untested, probably broken
 
         force_g = Vec3(-mass * 9.806, 0.0, 0.0)
-        force_d = -velocity.normalize() * (self.drag_coefficient/2.0 * air_density *
-                                           self.drag_area * velocity.length()**2)
+        force_d = -velocity.normalize() * (self.drag_coefficient/2.0 * air_density * self.drag_area * velocity.length()**2)
 
-        return force_d
+        # return force_d
 
         # removed for now because it is not working
 
         net_force_dir: Vec3 = (force_d) + force_g
         net_force_dir = net_force_dir.normalize()
 
-        force_dir_q = Quat(
-            1.0, 0.0, 0.0, 0.0).rotation_between_vectors(net_force_dir)
+        force_dir_q = Quat(1.0, 1.0, 0.0, 0.0).rotation_between_vectors(net_force_dir)
 
         return force_dir_q.rotate(force_d)
 

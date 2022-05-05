@@ -18,10 +18,10 @@ rocket_1: rocket = rocket(
     log_values=True,
     do_aero=True,
     dry_mass=0.4,
-    reference_area=np.pi*(0.076/2)**2,
-    drag_coeff_forewards=1.35,
-    drag_coeff_sideways=7,
-    cp_location=Vec3(0.2, 0.0, 0.0),
+    reference_area=0.0342,
+    drag_coeff_forewards=0.37,
+    drag_coeff_sideways=1.35,
+    cp_location=Vec3(0.2855, 0.0, 0.0),
     friction_coeff=0.001,
     moment_of_inertia=(Vec3(0.0404, 0.0148202733120976, 0.0148202733120976))
 )
@@ -41,8 +41,8 @@ tvc_1: TVC = TVC(
     noise=0.0005
 )
 
-PID_y: PID = PID(Kp=0.2, Ki=0.1, Kd=0.1)
-PID_z: PID = PID(Kp=0.2, Ki=0.1, Kd=0.1)
+PID_y: PID = PID(Kp=0.8, Ki=0.0, Kd=0.3)
+PID_z: PID = PID(Kp=0.8, Ki=0.0, Kd=0.3)
 
 @tvc_1.update_func
 def tvc1_update():
@@ -58,13 +58,12 @@ def tvc1_update():
 
     PID_y.update(np.arctan2(-target_vector.z, target_vector.x), tvc_1.update_delay, rotVel.y)
     PID_z.update(np.arctan2(target_vector.y, target_vector.x), tvc_1.update_delay, rotVel.z)
-    # print(PID_z.getOutput()*(180/np.pi))
-    # print( rotVel.z*(180/np.pi))
+    
     return Vec3(0.0, PID_y.getOutput(), PID_z.getOutput())
 
 # motor for the mount
 motor_1: rocket_motor = rocket_motor(
-    filePath=pytvc.C6, timeStep=1000)
+    filePath=pytvc.E12, timeStep=1000)
 
 parachute_1: parachute = parachute(diameter=0.9)
 
@@ -83,7 +82,7 @@ tvc_1.add_motor(motor_1)
 rocket_1.add_tvc_mount(tvc_mount=tvc_1, position=Vec3(-0.2, 0.0, 0.0))
 
 # add the parachute to the rocket
-rocket_1.add_parachute(parachute_1, Vec3(0.0, 0.0, 0.0))
+rocket_1.add_parachute(parachute_1, Vec3(0.35, 0.0, 0.0))
 
 # add the rocket to the sim
 sim.add_rocket(rocket_1)
