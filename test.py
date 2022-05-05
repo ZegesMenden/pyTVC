@@ -1,11 +1,12 @@
 import pytvc
-from pytvc.simulation import rocket, sim
+import pytvc.core as core
+from pytvc.core import simulation, rocket
 from pytvc.physics import Vec3, Quat, TVC, rocket_motor, parachute, physics_body
 from pytvc.control import PID, torque_PID
 import numpy as np
 
 # create the simulation object
-simulation: sim = sim(
+sim: simulation = simulation(
     time_end=15.0,
     sim_wind=True,
     random_wind=True
@@ -17,7 +18,7 @@ rocket_1: rocket = rocket(
     log_values=True,
     do_aero=True,
     dry_mass=0.4,
-    refence_area=np.pi*(0.076/2)**2,
+    reference_area=np.pi*(0.076/2)**2,
     drag_coeff_forewards=1.35,
     drag_coeff_sideways=7,
     cp_location=Vec3(0.2, 0.0, 0.0),
@@ -48,7 +49,7 @@ def tvc1_update():
 
     target_vector: Vec3 = Vec3(1.0, 0.0, 0.0)
 
-    if simulation.time > 0.5:
+    if sim.time > 0.5:
         target_vector.y += 0.1
 
     target_vector = rocket_1.body.rotation.conjugate().rotate(target_vector.normalize())
@@ -63,7 +64,7 @@ def tvc1_update():
 
 # motor for the mount
 motor_1: rocket_motor = rocket_motor(
-    filePath="C:/Users/Cameron/Documents/vscode/rockets/simulation/G-FIELD/motors/Estes_C6.rse", timeStep=1000)
+    filePath=pytvc.C6, timeStep=1000)
 
 parachute_1: parachute = parachute(diameter=0.9)
 
@@ -85,10 +86,10 @@ rocket_1.add_tvc_mount(tvc_mount=tvc_1, position=Vec3(-0.2, 0.0, 0.0))
 rocket_1.add_parachute(parachute_1, Vec3(0.0, 0.0, 0.0))
 
 # add the rocket to the sim
-simulation.add_rocket(rocket_1)
+sim.add_rocket(rocket_1)
 
 # set motor ignition time
 motor_1.set_ignition_time(0.0)
 
 if __name__ == "__main__":
-    simulation.run()
+    sim.run()
