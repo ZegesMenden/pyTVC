@@ -5,10 +5,9 @@ import os
 
 RAD2DEG = 180.0/np.pi
 
-
 class rocket:
 
-    def __init__(self, dry_mass: float = 1.0, time_step: float = 0.001, name: str = "", log_values: bool = False, log_frequency: int = 50, print_info: bool = False, do_aero: bool = True, drag_coeff_forewards: float = 0.0, drag_coeff_sideways: float = 0.0, refence_area: float = 0.0, cp_location: Vec3 = Vec3(), moment_of_inertia: Vec3 = Vec3(1.0, 1.0, 1.0), friction_coeff: float = 0.0) -> None:
+    def __init__(self, dry_mass: float = 1.0, time_step: float = 0.001, name: str = "", log_values: bool = False, log_frequency: int = 50, print_info: bool = False, do_aero: bool = True, drag_coeff_forewards: float = 0.0, drag_coeff_sideways: float = 0.0, reference_area: float = 0.0, cp_location: Vec3 = Vec3(), moment_of_inertia: Vec3 = Vec3(1.0, 1.0, 1.0), friction_coeff: float = 0.0) -> None:
         """__init__ initializes the rocket
 
         Args:
@@ -55,7 +54,7 @@ class rocket:
             drag_coefficient_sideways=drag_coeff_sideways,
             moment_of_inertia=moment_of_inertia,
             mass=dry_mass,
-            ref_area=refence_area,
+            ref_area=reference_area,
             cp_location=cp_location,
             friction_coeff=friction_coeff
         )
@@ -263,7 +262,7 @@ class rocket:
         self.body.clear()
 
 
-class sim:
+class simulation:
     """ simulation class"""
 
     def __init__(self, plot_data: bool = True, time_step: float = 0.001, time_end: float = 60.0, rockets: dict = {}, print_times: bool = True, print_info: bool = True, wind: Vec3 = Vec3(), sim_wind: bool = False, random_wind: bool = False) -> None:
@@ -330,7 +329,7 @@ wind speed: {round(self.wind, 2)}""")
         while self.time < self.time_end:
 
             self.time += self.time_step
-            if self.time % 0.5 < self.time_step:
+            if self.time % 0.1 < self.time_step:
                 print("Running simulation " +
                       progress_bar(self.time, self.time_end+self.time_step), end="\r")
 
@@ -350,9 +349,9 @@ wind speed: {round(self.wind, 2)}""")
 
                     pTmp.create_2d_graph(['time', 'position_x', 'position_y', 'position_z', 'velocity_x', 'velocity_y', 'velocity_z',
                                          'acceleration_x_world', 'acceleration_y_world', 'acceleration_z_world'], "x", "y", True, posArg=221)
-                    # pTmp.create_2d_graph(['time', 'velocity_x', 'velocity_y', 'velocity_z'], "x", "y", True)
                     pTmp.create_3d_graph(
                         ['position_x', 'position_y', 'position_z'], size=_rocket.apogee, posArg=122)
+                    
                     for tvc in _rocket._tvc_mounts:
                         t = _rocket._tvc_mounts[tvc]["mount"]
                         if isinstance(t, TVC):
@@ -361,8 +360,7 @@ wind speed: {round(self.wind, 2)}""")
                         else:
                             pTmp.create_2d_graph(
                                 ['time', 'rotation_x', 'rotation_y', 'rotation_z'], "x", "y", True)
-                    # pTmp.create_2d_graph(['time', 'acceleration_x_world', 'acceleration_y_world', 'acceleration_z_world'], "x", "y", True)
-
+                    
                     # if len(_rocket._data_points) != 0:
                     #     l: list = ['time']
                     #     for dp in _rocket._data_points:
@@ -370,8 +368,7 @@ wind speed: {round(self.wind, 2)}""")
 
                     #     print(l)
 
-                    pTmp.create_2d_graph(['T'], "x", "y", False)
-
                     pTmp.show_all_graphs()
+                    os.remove(f"{_rocket.name}_log.csv")
 
         return None
