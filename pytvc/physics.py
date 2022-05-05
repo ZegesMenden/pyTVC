@@ -3,6 +3,7 @@ from dataclasses import dataclass
 import numpy as np
 from pytvc.data import rocket_motor
 
+
 def clamp(x, min_val, max_val):
     return max(min(x, max_val), min_val)
 
@@ -292,7 +293,6 @@ class Quat:
 
         if isinstance(scalar, float) or isinstance(scalar, int):
             return Quat(self.w / scalar, self.x / scalar, self.y / scalar, self.z / scalar)
-        
 
     def __add__(self, other: Quat) -> Quat:
         """__add__ adds 2 Quats and returns the sum
@@ -582,7 +582,8 @@ class TVC:
         self._rotationEulers.z = clamp(
             self._rotationEulers.z, self.minPosition.z, self.maxPosition.z)
 
-        self._rotation = Quat().from_euler(self._rotationEulers + self.offset + Vec3(0.0, np.random.normal(0.0, 1, 1)[0] * self.noise, np.random.normal(0.0, 1, 1)[0] * self.noise))
+        self._rotation = Quat().from_euler(self._rotationEulers + self.offset + Vec3(0.0,
+                                                                                     np.random.normal(0.0, 1, 1)[0] * self.noise, np.random.normal(0.0, 1, 1)[0] * self.noise))
         self._rotationEulers = self._rotation.to_euler()
         self._rotationEulers.x = 0.0
 
@@ -747,6 +748,14 @@ class physics_body:
         """
         self.rotational_acceleration += (torque / self.moment_of_inertia)
 
+    def apply_local_torque(self, torque: Vec3) -> None:
+        """apply a torque in the local frame
+
+        Args:
+            torque (Vec3): the torque to apply
+        """
+        self.apply_torque(self.rotation.rotate(torque))
+
     def apply_point_torque(self, force: Vec3, point: Vec3) -> None:
         """apply a point torque in the global frame
 
@@ -757,14 +766,6 @@ class physics_body:
         tmp = point.cross(force)
         self.apply_torque(tmp)
 
-    def apply_local_torque(self, torque: Vec3) -> None:
-        """apply a torque in the local frame
-
-        Args:
-            torque (Vec3): the torque to apply
-        """
-        self.apply_torque(self.rotation.rotate(torque))
-
     def apply_local_point_torque(self, force: Vec3, point: Vec3) -> None:
         """apply a point torque in the local frame
 
@@ -772,8 +773,7 @@ class physics_body:
             force (Vec3): the force to apply 
             point (Vec3): the distance of the force from the center of mass
         """
-        self.apply_point_torque(self.rotation.rotate(
-            force), self.rotation.rotate(point))
+        self.apply_point_torque(self.rotation.rotate(force), self.rotation.rotate(point))
 
     def apply_force(self, force: Vec3) -> None:
         """apply a force on the body in the global frame
@@ -783,6 +783,14 @@ class physics_body:
         """
         accel: Vec3 = force / self.mass
         self.acceleration += accel
+    
+    def apply_local_force(self, force: Vec3) -> None:
+        """apply a force in the local frame
+
+        Args:
+            force (Vec3): the force to apply
+        """
+        self.apply_force(self.rotation.rotate(force))
 
     def apply_point_force(self, force: Vec3, point: Vec3) -> None:
         """apply a point force in the global frame, affects rotation and translation
@@ -794,14 +802,6 @@ class physics_body:
         self.apply_force(force)
         self.apply_point_torque(force, point)
 
-    def apply_local_force(self, force: Vec3) -> None:
-        """apply a force in the local frame
-
-        Args:
-            force (Vec3): the force to apply
-        """
-        self.apply_force(self.rotation.rotate(force))
-
     def apply_local_point_force(self, force: Vec3, point: Vec3) -> None:
         """apply a point force in the local frame, affects rotation and translation
 
@@ -809,8 +809,7 @@ class physics_body:
             force (Vec3): the force to apply
             point (Vec3): the distance of the force from the bodies center of mass
         """
-        self.apply_local_force(self.rotation.rotate(force))
-        self.apply_local_point_torque(force, point)
+        self.apply_point_force(self.rotation.rotate(force), self.rotation.rotate(point))
 
     def update(self, dt: float) -> None:
         """updates the physics body for the given change in time
@@ -836,7 +835,8 @@ class physics_body:
                 ((-np.cos(self.aoa)/2.0 + 0.5) *
                  (self.drag_coefficient_sideways - self.drag_coefficient_forwards))
 
-            self.drag_force = -velocity_relative_wind.normalize() * (drag_coefficient/2.0 * self.air_density * self.ref_area * (self.velocity.length()*self.velocity.length()))
+            self.drag_force = -velocity_relative_wind.normalize() * (drag_coefficient/2.0 *
+                                                                     self.air_density * self.ref_area * (self.velocity.length()*self.velocity.length()))
 
             self.apply_point_force(self.drag_force, self.cp_location)
             self.apply_torque(self.rotational_velocity * -
