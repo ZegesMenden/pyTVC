@@ -1,142 +1,125 @@
-from pytvc.physics import Vec3
+from .rigidBody import Vector3, Quaternion, RigidBody
+from .motor import Motor
 import numpy as np
 
-
-class PID:
-
-    """PID controller class
-
-    for more information on the PID controller, see:
-    https://en.wikipedia.org/wiki/PID_controller"""
-
-    def __init__(self, Kp: float = 0.0, Ki: float = 0.0, Kd: float = 0.0, setpoint: float = 0.0, i_max: float = 0.0) -> None:
-        """__init__ initializes the PID controller
+class ControlActor:
+    
+    def __init__(self):
+        pass
+    
+    def update(self, body: RigidBody, time: float) -> None:
+        """Update the control actor with the given rigid body and time.
 
         Args:
-            Kp (float, optional): the proportional gain of the controller. Defaults to 0.0.
-            Ki (float, optional): the integral gain of the controller. Defaults to 0.0.
-            Kd (float, optional): the derivative gain of the controller. Defaults to 0.0.
-            setpoint (float, optional): the setpoint of the controller. Defaults to 0.0.
-            i_max (float, optional): the maximum value for the integral component of the controller. Defaults to 0.0.
+            body (RigidBody): The rigid body to update.
+            time (float): The time to update the control actor.
         """
-        self.Kp = Kp
-        self.Ki = Ki
-        self.Kd = Kd
-        self.i_max = i_max
-        self.setpoint = setpoint
-        self.i: float = 0.0
-        self.last_error: float = 0.0
-
-        self.output: float = 0.0
-
-    def update(self, input: float, dt: float = 1.0, input_derivitive: float = 0.0) -> None:
-        error = self.setpoint - input
-
-        if self.i > self.i_max:
-            self.i = self.i_max
-        elif self.i < -self.i_max:
-            self.i = -self.i_max
-
-        d = (error - self.last_error) / dt
-        self.last_error = error
-
-        if input_derivitive != 0.0:
-            d = input_derivitive
-
-        self.output = (self.Kp * error) + (self.Ki * self.i) + (self.Kd * d)
-
-    def reset(self) -> None:
-        self.i = 0.0
-        self.last_error = 0.0
-
-    def setSetpoint(self, setpoint: float) -> None:
-        """setSetpoint sets the setpoint of the PID controller
-
-        Args:
-            setpoint (float): setpoint of the PID controller
-        """
-        self.setpoint = setpoint
-
-    def setKp(self, Kp: float) -> None:
-        """setKp sets the proportional gain of the PID controller
-
-        Args:
-            Kp (float): proportional gain of the PID controller
-        """
-        self.Kp = Kp
-
-    def setKi(self, Ki: float) -> None:
-        """setKi sets the integral gain of the PID controller
-
-        Args:
-            Ki (float): integral gain of the PID controller
-        """
-        self.Ki = Ki
-
-    def setKd(self, Kd: float) -> None:
-        """setKd sets the derivative gain of the PID controller
-
-        Args:
-            Kd (float): derivative gain of the PID controller
-        """
-        self.Kd = Kd
-
-    def setImax(self, i_max: float) -> None:
-        """setImax set the maximum integral value for the PID controller
-
-        Args:
-            i_max (float): maximum value for the integral
-        """
-        self.i_max = i_max
-
-    def getOutput(self) -> float:
-        """getOutput returns the output of the PID controller
+        pass
+    
+    def getForce(self) -> Vector3:
+        """Get the force applied by the control actor.
 
         Returns:
-            float: output of the PID controller
+            Vector3: The force applied by the control actor in the local reference frame to the parent RigidBody.
         """
-        return self.output
+        return Vector3(0.0, 0.0, 0.0)
+    
+    def getTorque(self) -> Vector3:
+        """Get the torque applied by the control actor.
 
-
-class torque_PID(PID):
-
-    def __init__(self, Kp: float = 0.0, Ki: float = 0.0, Kd: float = 0.0, setpoint: float = 0.0, i_max: float = 0.0, inertia: float = 1.0, lever_arm: float = 1.0) -> None:
-        """__init__ initializes the PID controller
+        Returns:
+            Vector3: The torque applied by the control actor in the local reference frame to the parent RigidBody.
+        """
+        return Vector3(0.0, 0.0, 0.0)
+    
+class TVCMount(ControlActor):
+    
+    def __init__(self, motors: Motor|list[Motor], servoTransferFunction: callable = None, linkageFunction: callable = None) -> None:
+        """Initializes a new instance of the TVCMount class.
 
         Args:
-            Kp (float, optional): the proportional gain of the controller. Defaults to 0.0.
-            Ki (float, optional): the integral gain of the controller. Defaults to 0.0.
-            Kd (float, optional): the derivative gain of the controller. Defaults to 0.0.
-            setpoint (float, optional): the setpoint of the controller. Defaults to 0.0.
-            i_max (float, optional): the maximum value for the integral component of the controller. Defaults to 0.0.
-            inertia (float, optional): the inertia to pass into the torque controller. Defaults to 1.0.
-            lever_arm (float, optional): the lever arm to pass into the torque controller. Defaults to 1.0.
+            motors (Motor|list[Motor]): The motor or list of motors to be used in the mount.
+            servoTransferFunction (callable): The transfer function for the servo.
+
         """
-
-        super().__init__(Kp, Ki, Kd, setpoint, i_max)
-        self.inertia = inertia
-        self.lever_arm = lever_arm
-
-    def update(self, input: float, dt: float = 1.0, force: float = 1.0, input_derivitive: float = 0.0) -> None:
-        """updates the PID controller
+        
+        super().__init__()
+        if isinstance(motors, Motor):
+            self._motors = [motors]
+        else:
+            if not all(isinstance(motor, Motor) for motor in motors):
+                raise TypeError("All elements in motors must be of type Motor.")
+            self._motors = motors
+            
+        self._ignitionTimes = [-1] * len(self._motors)
+        
+        if servoTransferFunction is not None and not callable(servoTransferFunction):
+            raise TypeError("servoTransferFunction must be a callable.")
+        
+        if linkageFunction is not None and not callable(linkageFunction):
+            raise TypeError("linkageFunction must be a callable.")
+        
+        self._linkageFunction = linkageFunction
+        self._servoTransferFunction = servoTransferFunction
+    
+        self._angles = Vector3(0.0, 0.0, 0.0)
+        self._targetAngles = Vector3(0.0, 0.0, 0.0)
+        
+    def linkageFunction(self, fn: callable) -> callable:
+        """Set the linkage function for the TVCMount.
 
         Args:
-            input (float): the input to the controller
-            dt (float, optional): the time between this call and the last call of the PID controller. Defaults to 1.0.
-            force (float, optional): the force that the controller is changing. Defaults to 1.0.
-            input_derivitive (float, optional): an override of the built in derivitive. Defaults to 0.0.
-        """
-        if input_derivitive == 0.0:
-            super().update(input, dt)
-        else:
-            super().update(input, dt, input_derivitive)
+            fn (callable): The linkage function to set.
 
-        if force != 0.0:
-            calcval = ((super().getOutput() * self.inertia) / force) / self.lever_arm
-            print(calcval)
-            if abs(calcval) > 1.0:
-                self.output = 0.0
-            else:
-                self.output = np.arcsin(calcval)
-        else:
-            self.output = 0.0
+        Returns:
+            callable: The linkage function.
+        """
+        
+        self._linkageFunction = fn
+        return self._linkageFunction
+    
+    def transferFunction(self, fn: callable) -> callable:
+        """Set the transfer function for the TVCMount.
+
+        Args:
+            fn (callable): The transfer function to set.
+
+        Returns:
+            callable: The transfer function.
+        """
+        
+        self._servoTransferFunction = fn
+        return self._servoTransferFunction
+    
+    def setTargetAngles(self, angles: Vector3) -> None:
+        """Set the target angles for the TVCMount.
+
+        Args:
+            angles (Vector3): The target angles to set.
+        """
+        
+        self._targetAngles = angles
+    
+    def update(self, body: RigidBody, time: float) -> None:
+        """Update the control actor with the given rigid body and time.
+
+        Args:
+            body (RigidBody): The rigid body to update.
+            time (float): The time to update the control actor.
+        """
+        
+        self._time = time
+        
+        # Get the thrust from each motor
+        thrust = sum([motor.GetThrust(self._time - ignitionTime) if ignitionTime != -1 else motor.GetThrust(0) for motor, ignitionTime in zip(self._motors, self._ignitionTimes)])
+        mass = sum([motor.GetMass(self._time - ignitionTime) if ignitionTime != -1 else motor.GetMass(0) for motor, ignitionTime in zip(self._motors, self._ignitionTimes)])
+                
+        # Apply the servo transfer function ()
+        servoOutput = self._servoTransferFunction(body, self._time, self._targetAngles, thrust, mass)
+        
+        # Apply the linkage function
+        self._angles: Quaternion = self._linkageFunction(body, self._time, servoOutput)
+        
+        thrustVec = self._angles.rotate(Vector3(thrust, 0, 0))
+
+        return thrustVec, mass

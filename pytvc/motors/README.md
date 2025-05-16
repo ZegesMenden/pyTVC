@@ -1,1 +1,0 @@
-# all motors are from [thrustcurve.org](https://www.thrustcurve.org/)
