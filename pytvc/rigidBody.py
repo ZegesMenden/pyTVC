@@ -154,6 +154,10 @@ class Quaternion:
         )
 
     def __mul__(self, other: Quaternion) -> Quaternion:
+        if not isinstance(other, Quaternion):
+            return Quaternion(
+                self.w * other, self.x * other, self.y * other, self.z * other
+            )
         return Quaternion(
             self.w * other.w - self.x * other.x - self.y * other.y - self.z * other.z,
             self.w * other.x + self.x * other.w + self.y * other.z - self.z * other.y,
@@ -373,6 +377,15 @@ class RigidBody:
 
         self._torque = Vector3()
         self._accel = Vector3()
+        self._lastAccel = Vector3()
+
+    def getAccel(self) -> Vector3:
+        """Get the acceleration of the rigid body
+
+        Returns:
+            Vector3: Acceleration of the rigid body
+        """
+        return self._lastAccel
 
     def applyTorque(self, torque: Vector3) -> None:
         """Apply a torque to the rigid body
@@ -381,6 +394,14 @@ class RigidBody:
             torque (Vector3): Torque to apply
         """
         self._torque += torque / self.inertia
+    
+    def applyLocalTorque(self, torque: Vector3) -> None:
+        """Apply a local torque to the rigid body
+
+        Args:
+            torque (Vector3): Torque to apply
+        """
+        self._torque += self.rotation.rotate(torque) / self.inertia
 
     def applyForce(self, force: Vector3, position: Vector3) -> None:
         """Apply a force to the rigid body
@@ -389,6 +410,15 @@ class RigidBody:
             force (Vector3): Force to apply
         """
         self._accel += force / self.mass
+        self.applyTorque(position.cross(force))
+
+    def applyLocalForce(self, force: Vector3, position: Vector3) -> None:
+        """Apply a local force to the rigid body
+
+        Args:
+            force (Vector3): Force to apply
+        """
+        self._accel += self.rotation.rotate(force) / self.mass
         self.applyTorque(position.cross(force))
 
     def update(self, dt: float) -> None:
@@ -409,6 +439,8 @@ class RigidBody:
             self.rotation = self.rotation.norm()
 
         self.rotVel += self._torque * dt
+
+        self._lastAccel = self._accel
 
         self._torque = Vector3()
         self._accel = Vector3()
