@@ -96,12 +96,7 @@ class Motor:
         self._points = []
 
         extension = file.split(".")[-1].lower()
-        try:
-            with open(file, "r") as f:
-                content = f.read()
-        except Exception as e1:
-            logger.error(f"An unexpected error occurred: {e1}", exc_info=True)
-
+        
         if extension == "rasp":
             try:
                 for point in RaspParser(file):
@@ -187,3 +182,12 @@ class Motor:
         """
 
         return self._points[-1]["time"]
+
+    def getAllPoints(self) -> list:
+        """getAllPoints returns all points of the motor
+
+        Returns:
+            list: A list of all points of the motor.
+        """
+
+        return self._points
