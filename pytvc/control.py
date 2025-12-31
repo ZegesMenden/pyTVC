@@ -1,4 +1,5 @@
 from .rigidBody import Vector3, Quaternion, RigidBody
+from collections.abc import Callable
 from .motor import Motor
 import numpy as np
 
@@ -42,7 +43,7 @@ class Actor:
     
 class TVCMount(Actor):
     
-    def __init__(self, motors: Motor|list[Motor], servoTransferFunction: callable = None, linkageFunction: callable = None) -> None:
+    def __init__(self, motors: Motor|list[Motor], servoTransferFunction: Callable[[RigidBody, float, Vector3, float, float], Quaternion], linkageFunction: Callable[[RigidBody, float, Vector3], Quaternion]) -> None:
         """Initializes a new instance of the TVCMount class.
 
         Args:
@@ -59,7 +60,7 @@ class TVCMount(Actor):
                 raise TypeError("All elements in motors must be of type Motor.")
             self._motors = motors
             
-        self._ignitionTimes = [-1] * len(self._motors)
+        self._ignitionTimes = [-1.0] * len(self._motors)
         
         if servoTransferFunction is not None and not callable(servoTransferFunction):
             raise TypeError("servoTransferFunction must be a callable.")
@@ -70,8 +71,8 @@ class TVCMount(Actor):
         self._linkageFunction = linkageFunction
         self._servoTransferFunction = servoTransferFunction
     
-        self._angles = Vector3(0.0, 0.0, 0.0)
-        self._targetAngles = Vector3(0.0, 0.0, 0.0)
+        self._angles = Quaternion()
+        self._targetAngles = Vector3()
 
         self._mass = sum(motor.GetMass(0) for motor in self._motors)
         
@@ -95,7 +96,7 @@ class TVCMount(Actor):
         index = self._motors.index(motor)
         self._ignitionTimes[index] = time
 
-    def linkageFunction(self, fn: callable) -> callable:
+    def linkageFunction(self, fn: Callable[[RigidBody, float, Vector3], Quaternion]) -> Callable[[RigidBody, float, Vector3], Quaternion]:
         """Set the linkage function for the TVCMount.
 
         Args:
@@ -108,7 +109,7 @@ class TVCMount(Actor):
         self._linkageFunction = fn
         return self._linkageFunction
     
-    def transferFunction(self, fn: callable) -> callable:
+    def transferFunction(self, fn: Callable[[RigidBody, float, Vector3, float, float], Quaternion]) -> Callable[[RigidBody, float, Vector3, float, float], Quaternion]:
         """Set the transfer function for the TVCMount.
 
         Args:
@@ -198,7 +199,7 @@ class TVCMount(Actor):
 
 class RocketBody(Actor):
 
-    def __init__(self, cpLocation: Vector3, CLFunction: callable, CDFunction: callable, SAFunction: callable, presFunction: callable) -> None:
+    def __init__(self, cpLocation: Vector3, CLFunction: Callable[[float, float], float], CDFunction: Callable[[float, float], float], SAFunction: Callable[[float, float], float], presFunction: Callable[[float, float], float]) -> None:
         """Initializes a new instance of the RocketBody class.
 
         Args:
