@@ -2,7 +2,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import numpy as np
 from loguru import logger
-
+from typing import Iterable
 
 @dataclass
 class Vector3:
@@ -39,7 +39,7 @@ class Vector3:
     def __ne__(self, other: Vector3) -> bool:
         return not self.__eq__(other)
 
-    def __iter__(self) -> iter[float]:
+    def __iter__(self) -> Iterable[float]:
         return iter([self.x, self.y, self.z])
 
     def __getitem__(self, index: int) -> float:
@@ -197,7 +197,7 @@ class Quaternion:
     def __ne__(self, other: Quaternion) -> bool:
         return not self.__eq__(other)
 
-    def __iter__(self) -> iter[float]:
+    def __iter__(self) -> Iterable[float]:
         return iter([self.w, self.x, self.y, self.z])
 
     def __getitem__(self, index: int) -> float:
@@ -270,6 +270,7 @@ class Quaternion:
         """
         return self.w * other.w + self.x * other.x + self.y * other.y + self.z * other.z
 
+    @staticmethod
     def fromAxisAngle(axis: Vector3, angle: float) -> Quaternion:
         """Create a Quaternion object from an axis and an angle
 
@@ -298,6 +299,7 @@ class Quaternion:
         axis = self.xyz / np.sin(angle / 2)
         return axis, angle
 
+    @staticmethod
     def fromEulerAngles(rot: Vector3) -> Quaternion:
         """Create a Quaternion object from Euler angles
 
@@ -320,6 +322,52 @@ class Quaternion:
             cr * sp * cy + sr * cp * sy,
             cr * cp * sy - sr * sp * cy,
         )
+
+    @staticmethod
+    def fromRotationMatrix(mat) -> Quaternion:
+        """Create a Quaternion from a 3x3 rotation matrix.
+
+        Args:
+            mat: Rotation matrix as a list of lists or numpy array. A 4x4
+                homogeneous matrix is also accepted; only the upper-left 3x3
+                block is used.
+
+        Returns:
+            Quaternion: Quaternion representing the same rotation.
+        """
+        m = np.asarray(mat, dtype=float)
+        if m.shape == (4, 4):
+            m = m[:3, :3]
+        if m.shape != (3, 3):
+            raise ValueError("Rotation matrix must be 3x3 or 4x4")
+
+        trace = np.trace(m)
+        if trace > 0.0:
+            s = np.sqrt(trace + 1.0) * 2.0
+            w = 0.25 * s
+            x = (m[2, 1] - m[1, 2]) / s
+            y = (m[0, 2] - m[2, 0]) / s
+            z = (m[1, 0] - m[0, 1]) / s
+        elif m[0, 0] > m[1, 1] and m[0, 0] > m[2, 2]:
+            s = np.sqrt(1.0 + m[0, 0] - m[1, 1] - m[2, 2]) * 2.0
+            w = (m[2, 1] - m[1, 2]) / s
+            x = 0.25 * s
+            y = (m[0, 1] + m[1, 0]) / s
+            z = (m[0, 2] + m[2, 0]) / s
+        elif m[1, 1] > m[2, 2]:
+            s = np.sqrt(1.0 + m[1, 1] - m[0, 0] - m[2, 2]) * 2.0
+            w = (m[0, 2] - m[2, 0]) / s
+            x = (m[0, 1] + m[1, 0]) / s
+            y = 0.25 * s
+            z = (m[1, 2] + m[2, 1]) / s
+        else:
+            s = np.sqrt(1.0 + m[2, 2] - m[0, 0] - m[1, 1]) * 2.0
+            w = (m[1, 0] - m[0, 1]) / s
+            x = (m[0, 2] + m[2, 0]) / s
+            y = (m[1, 2] + m[2, 1]) / s
+            z = 0.25 * s
+
+        return Quaternion(w, x, y, z).norm()
 
     def toEulerAngles(self) -> Vector3:
         """Convert a Quaternion object to Euler angles
