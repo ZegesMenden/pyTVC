@@ -418,11 +418,15 @@ class RocketBody(AeroComponent):
             drag = 0.5 * cd * sa * pres * velMagnitude**2
 
             # Calculate lift and drag vectors in world coordinates
-
-            self._liftVec = airVelocity.cross( body.rotation.rotate(Vector3(1.0, 0.0, 0.0))).cross(airVelocity).norm() * lift
-            self._liftVec = body.rotation.rotate(self._liftVec)
+            if abs(aoa) > 1e-9:
+                self._liftVec = airVelocity.cross( body.rotation.rotate(Vector3(1.0, 0.0, 0.0))).cross(airVelocity).norm() * lift
+                self._liftVec = body.rotation.rotate(self._liftVec)
+            else:
+                self._liftVec = Vector3()
 
             self._dragVec = airVelocity.norm() * -drag
+
+
         else:
             self._liftVec = Vector3(0.0, 0.0, 0.0)
             self._dragVec = Vector3(0.0, 0.0, 0.0)
