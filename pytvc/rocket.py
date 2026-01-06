@@ -1,6 +1,6 @@
 import numpy as np
 from .rigidBody import Vector3, Quaternion, RigidBody
-from .control import Actor
+from .actor import Actor
 
 class Rocket:
 

@@ -197,33 +197,189 @@ class TVCMount(Actor):
         
         return self._targetAngles
 
-class RocketBody(Actor):
+class AeroComponent(Actor):
 
-    def __init__(self, cpLocation: Vector3, CLFunction: Callable[[float, float], float], CDFunction: Callable[[float, float], float], SAFunction: Callable[[float, float], float], presFunction: Callable[[float, float], float]) -> None:
-        """Initializes a new instance of the RocketBody class.
+    def __init__(self, position: Vector3, dragFunction: Callable[[float, float, RigidBody], float], liftFunction: Callable[[float, float, RigidBody], float], presFunction: Callable[[RigidBody], float]):
+
+        if not isinstance(position, Vector3):
+            raise ValueError("position must be a Vector3 object")
+
+        if not callable(dragFunction):
+            raise ValueError("dragFunction must be a callable function")
+        
+        if not callable(liftFunction):
+            raise ValueError("liftFunction must be a callable function")
+    
+        if not callable(presFunction):
+            raise ValueError("presFunction must be a callable function")
+
+        self._position = position
+        self._dragFunction = dragFunction
+        self._liftFunction = liftFunction
+        self._presFunction = presFunction
+
+    @property
+    def position(self) -> Vector3:
+        return self._position
+    
+    @position.setter
+    def position(self, value: Vector3):
+        if not isinstance(value, Vector3):
+            raise ValueError("position must be a Vector3 object")
+        self._position = value
+
+    @property
+    def dragFunction(self) -> Callable[[float, float, RigidBody], float]:
+        return self._dragFunction
+    
+    @property
+    def liftFunction(self) -> Callable[[float, float, RigidBody], float]:
+        return self._liftFunction
+    
+    @dragFunction.setter
+    def dragFunction(self, value: Callable[[float, float, RigidBody], float]):
+        if not callable(value):
+            raise ValueError("dragFunction must be a callable function")
+        self._dragFunction = value
+
+    @liftFunction.setter
+    def liftFunction(self, value: Callable[[float, float, RigidBody], float]):
+        if not callable(value):
+            raise ValueError("liftFunction must be a callable function")
+        self._liftFunction = value
+
+class Fin(AeroComponent):
+
+    def __init__(self, position: Vector3, dragFunction: Callable[[float, float, RigidBody], float], liftFunction: Callable[[float, float, RigidBody], float], presFunction: Callable[[RigidBody], float], area: float, angle: float):
+
+        super().__init__(position, dragFunction, liftFunction, presFunction)
+        self._area: float = area
+        self._angle: float = 0.0
+        self._bodyAngle: float = angle
+        self.liftForces: list[Vector3] = []
+        self.dragForces: list[Vector3] = []
+        self.__force: Vector3 = Vector3()
+        self.__torque: Vector3 = Vector3()
+
+    def setAngle(self, angle: float):
+        self._angle = angle
+
+    def getAngle(self) -> float:
+        return self._angle
+
+    def getBodyAngle(self) -> float:
+        return self._bodyAngle
+
+    def getRotationBody(self) -> Quaternion:
+        """Fin rotation relative to the rocket body frame.
+
+        Convention matches `getForces()`: body mounting angle about +X then
+        commanded deflection about +Y.
+        """
+        return (
+            Quaternion.fromEulerAngles(Vector3(self._bodyAngle, 0, 0))
+            * Quaternion.fromEulerAngles(Vector3(0, self.getAngle(), 0))
+        )
+    
+    def update(self, body: RigidBody, time: float) -> None:
+        """Update the actor with the given rigid body and time.
 
         Args:
-            cpLocation (Vector3): The center of pressure location.
-            CLFunction (callable): The function to calculate lift coefficient.
-            CDFunction (callable): The function to calculate drag coefficient.
-            SAFunction (callable): The function to calculate the surface area.
-            presFunction (callable): The function to calculate the pressure.
+            body (RigidBody): The rigid body to update.
+            time (float): The time to update the actor.
         """
+        
+        self.__force = Vector3()
+        self.__torque = Vector3()
 
-        super().__init__()
-        self._cpLocation = cpLocation
+        # TODO: add Reynolds number based lookup instead of fixed CL/CD callbacks.
 
-        if not callable(CLFunction):
-            raise TypeError("CLFunction must be a callable.")
-        self._CLFunction = CLFunction
+        # Fin velocity in body frame (linear + rotational components).
+        # Keep frames consistent:
+        # - `self.position` is in the rocket/body frame
+        # - `body.velocity` and `body.rotVel` are in the world frame
+        # Convert world -> body first, then apply omega x r in the body frame.
+        bodyVelocity = body.rotation.conjugate().rotate(body.velocity)
+        bodyRotVel = body.rotation.conjugate().rotate(body.rotVel)
+        bodyVelocity = bodyVelocity + bodyRotVel.cross(self.position)
 
-        if not callable(CDFunction):
-            raise TypeError("CDFunction must be a callable.")
-        self._CDFunction = CDFunction
+        # Orientation of the fin: body mounting angle then commanded deflection.
+        finRotation: Quaternion = self.getRotationBody()
 
-        if not callable(SAFunction):
-            raise TypeError("SAFunction must be a callable.")
-        self._SAFunction = SAFunction
+        # Velocity in the fin frame.
+        finVelocity = finRotation.conjugate().rotate(bodyVelocity)
+        flowSpeed = abs(finVelocity)
+        if flowSpeed == 0:
+            return
+    
+        # print(finVelocity)
+
+        angleOfAttack = np.arctan2(-finVelocity.z, finVelocity.x)
+
+        # print(self.getAngle()*180/np.pi)
+        # print(angleOfAttack*180/np.pi)
+
+        # Aerodynamic coefficients from user-supplied models.
+        CL = self._liftFunction(angleOfAttack, flowSpeed, body)
+        CD = self._dragFunction(angleOfAttack, flowSpeed, body)
+
+        # Directions in the fin frame.
+        flowDir = finVelocity.norm()
+        dragDirection = flowDir * -1.0
+
+        # Span axis is +Y in the fin frame; lift is perpendicular to flow and span.
+        spanAxis = Vector3(0.0, 0.0, 1.0)
+        liftDirection = flowDir.cross(spanAxis).cross(flowDir).norm()
+        if abs(angleOfAttack) > 0:
+            liftDirection = liftDirection * np.sign(angleOfAttack)
+
+        # TODO: change this with the actual air density.
+        airDensity = 1.225
+
+        # Find lift and drag
+        aeroCoeff = 0.5 * airDensity * (flowSpeed ** 2) * self._area
+
+        lift = liftDirection * aeroCoeff * CL
+        drag = dragDirection * aeroCoeff * CD
+
+        worldLift = body.rotation.rotate(finRotation.rotate(lift))
+        worldDrag = body.rotation.rotate(finRotation.rotate(drag))
+        
+        # Rotate forces back to world frame.
+        totalForcesFinFrame = lift + drag
+        totalForcesWorldFrame = body.rotation.rotate(finRotation.rotate(totalForcesFinFrame))
+
+        self.liftForces.append(worldLift)
+        self.dragForces.append(worldDrag)
+        
+        self.__force = totalForcesWorldFrame
+        self.__torque = Vector3()
+
+    def getForce(self) -> Vector3:
+        """Get the force applied by the actor.
+
+        Returns:
+            Vector3: The force applied by the actor in the local reference frame to the parent RigidBody.
+        """
+        return self.__force
+    
+    def getTorque(self) -> Vector3:
+        """Get the torque applied by the actor.
+
+        Returns:
+            Vector3: The torque applied by the actor in the local reference frame to the parent RigidBody.
+        """
+        return Vector3(0.0, 0.0, 0.0)
+
+class RocketBody(AeroComponent):
+
+    def __init__(self, position: Vector3, dragFunction: Callable[[float, float, RigidBody], float], liftFunction: Callable[[float, float, RigidBody], float], presFunction: Callable[[RigidBody], float], areaFunction: Callable[[float, float, RigidBody], float]) -> None:
+
+        super().__init__(position, dragFunction, liftFunction, presFunction)
+
+        if not callable(areaFunction):
+            raise TypeError("areaFunction must be a callable.")
+        self._areaFunction = areaFunction
 
         if not callable(presFunction):
             raise TypeError("presFunction must be a callable.")
@@ -252,10 +408,10 @@ class RocketBody(Actor):
             if aoa > np.pi / 2:
                 aoa = np.pi - aoa
 
-            cd = self._CDFunction(aoa, velMagnitude)
-            cl = self._CLFunction(aoa, velMagnitude)
-            sa = self._SAFunction(aoa, velMagnitude)
-            pres = self._presFunction(aoa, velMagnitude)
+            cd = self._dragFunction(aoa, velMagnitude, body)
+            cl = self._liftFunction(aoa, velMagnitude, body)
+            sa = self._areaFunction(aoa, velMagnitude, body)
+            pres = self._presFunction(body)
 
             # Calculate lift and drag forces
             lift = 0.5 * cl * sa * pres * velMagnitude**2

@@ -1,4 +1,4 @@
-import pytvc.control
+import pytvc.actor
 import pytvc.motor
 import pytvc.rocket
 import pytvc.rigidBody
