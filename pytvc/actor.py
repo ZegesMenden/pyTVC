@@ -2,6 +2,7 @@ from .rigidBody import Vector3, Quaternion, RigidBody
 from collections.abc import Callable
 from .motor import Motor
 import numpy as np
+from loguru import logger
 
 class Actor:
     
@@ -425,10 +426,12 @@ class Fin(AeroComponent):
         dragDirection = flowDir * -1.0
 
         # Span axis is +Y in the fin frame; lift is perpendicular to flow and span.
-        spanAxis = Vector3(0.0, 0.0, 1.0)
-        liftDirection = flowDir.cross(spanAxis).cross(flowDir).norm()
+        # spanAxis = Vector3(0.0, 0.0, 1.0)
+        # liftDirection = flowDir.cross(spanAxis).cross(flowDir).norm()
+        spanAxis = Vector3(0.0, 1.0, 0.0)   # if fin-frame y is span
+        liftDirection = flowDir.cross(spanAxis).norm()  # perpendicular to flow and span
         if abs(angleOfAttack) > 0:
-            liftDirection = liftDirection * np.sign(angleOfAttack)
+            liftDirection = liftDirection# * np.sign(angleOfAttack)
 
         # TODO: change this with the actual air density.
         airDensity = 1.225
@@ -439,17 +442,17 @@ class Fin(AeroComponent):
         lift = liftDirection * aeroCoeff * CL
         drag = dragDirection * aeroCoeff * CD
 
-        worldLift = body.rotation.rotate(finRotation.rotate(lift))
-        worldDrag = body.rotation.rotate(finRotation.rotate(drag))
+        bodyLift = finRotation.rotate(lift)
+        bodyDrag = finRotation.rotate(drag)
         
         # Rotate forces back to world frame.
         totalForcesFinFrame = lift + drag
-        totalForcesWorldFrame = body.rotation.rotate(finRotation.rotate(totalForcesFinFrame))
+        totalForcesBodyFrame = finRotation.rotate(totalForcesFinFrame)
 
-        self.liftForces.append(worldLift)
-        self.dragForces.append(worldDrag)
+        self.liftForces.append(bodyLift)
+        self.dragForces.append(bodyDrag)
         
-        self.__force = totalForcesWorldFrame
+        self.__force = totalForcesBodyFrame
         self.__torque = Vector3()
 
     def getForce(self) -> Vector3:
@@ -511,7 +514,7 @@ class FinCan(Actor):
         totalTorque: Vector3 = Vector3()
         for fin in self.__fins:
             totalTorque += fin.getTorque()
-            totalTorque += fin.position.cross(fin.getForce())
+            totalTorque += fin.position.cross(fin.getForce()) * Vector3(1, 0, 0)
         
         return totalTorque
     
@@ -535,8 +538,7 @@ class SpinCan(FinCan):
         totalTorque: Vector3 = Vector3()
         for fin in super().getFins():
             totalTorque += fin.getTorque()
-            forceTorque = fin.position.cross(fin.getForce())
-            forceTorque.x *= self.__rollCoefficient
+            forceTorque = fin.position.cross(fin.getForce()) * Vector3(self.__rollCoefficient, 0, 0)
             totalTorque += forceTorque
 
         return totalTorque
