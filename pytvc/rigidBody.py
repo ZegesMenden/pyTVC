@@ -25,7 +25,9 @@ class Vector3:
     def __sub__(self, other: Vector3) -> Vector3:
         return Vector3(self.x - other.x, self.y - other.y, self.z - other.z)
 
-    def __mul__(self, other: float) -> Vector3:
+    def __mul__(self, other: float | Vector3) -> Vector3:
+        if isinstance(other, Vector3):
+            return Vector3(self.x * other.x, self.y * other.y, self.z * other.z)
         return Vector3(self.x * other, self.y * other, self.z * other)
 
     def __truediv__(self, other: float | Vector3) -> Vector3:
@@ -33,10 +35,11 @@ class Vector3:
             return Vector3(self.x / other.x, self.y / other.y, self.z / other.z)
         return Vector3(self.x / other, self.y / other, self.z / other)
 
-    def __eq__(self, other: Vector3) -> bool:
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Vector3): return False
         return self.x == other.x and self.y == other.y and self.z == other.z
 
-    def __ne__(self, other: Vector3) -> bool:
+    def __ne__(self, other: object) -> bool:
         return not self.__eq__(other)
 
     def __iter__(self) -> Iterable[float]:
@@ -182,19 +185,16 @@ class Quaternion:
             # Return a zero quaternion if division by non-float occurs
             return Quaternion(0.0, 0.0, 0.0, 0.0)
 
-    def __eq__(self, other: Quaternion) -> bool:
-        try:
-            return (
-                self.w == other.w
-                and self.x == other.x
-                and self.y == other.y
-                and self.z == other.z
-            )
-        except (AttributeError, TypeError):
-            logger.warning("Quaternion comparison with non-Quaternion object")
-            return False
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, Quaternion): return False
+        return (
+            self.w == other.w
+            and self.x == other.x
+            and self.y == other.y
+            and self.z == other.z
+        )
 
-    def __ne__(self, other: Quaternion) -> bool:
+    def __ne__(self, other: object) -> bool:
         return not self.__eq__(other)
 
     def __iter__(self) -> Iterable[float]:
