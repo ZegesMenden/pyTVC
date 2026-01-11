@@ -40,16 +40,50 @@ class Actor:
             float: The mass of the actor.
         """
         return 0.0
+
+class RollDampener(Actor):
+
+    def __init__(self, dampingCoefficient: Vector3):
+        """Initialize a RollDampener class. This Actor applies a damping torque proportional to the current roll rate in each axis.
+
+        Args:
+            dampingCoefficient (Vector3): damping coefficient for each axis
+
+        Raises:
+            TypeError: if dampingCoefficient is not of type Vector3
+        """
+
+        if not isinstance(dampingCoefficient, Vector3):
+            raise TypeError("dampingCoefficient must be of type Vector3")
+        
+        self.__dampingCoefficient: Vector3 = dampingCoefficient
+        self.__dampingTorque: Vector3 = Vector3()
+
+    def update(self, body: RigidBody, time: float) -> None:
+        """Update the actor with the given rigid body and time.
+
+        Args:
+            body (RigidBody): The rigid body to update.
+            time (float): The time to update the actor.
+        """
+        
+        self.__dampingTorque = body.rotation.conjugate().rotate(self.__dampingCoefficient * body.rotVel)
     
-class TVCMount(Actor):
+    def getTorque(self) -> Vector3:
+        """Get the torque applied by the actor.
+
+        Returns:
+            Vector3: The torque applied by the actor in the local reference frame to the parent RigidBody.
+        """
+        return self.__dampingTorque
+
+class MotorMount(Actor):
     
-    def __init__(self, motors: Motor|list[Motor], servoTransferFunction: Callable[[RigidBody, float, Vector3, float, float], Quaternion], linkageFunction: Callable[[RigidBody, float, Vector3], Quaternion]) -> None:
+    def __init__(self, motors: Motor|list[Motor]) -> None:
         """Initializes a new instance of the TVCMount class.
 
         Args:
             motors (Motor|list[Motor]): The motor or list of motors to be used in the mount.
-            servoTransferFunction (callable): The transfer function for the servo.
-
         """
         
         super().__init__()
@@ -61,19 +95,6 @@ class TVCMount(Actor):
             self._motors = motors
             
         self._ignitionTimes = [-1.0] * len(self._motors)
-        
-        if servoTransferFunction is not None and not callable(servoTransferFunction):
-            raise TypeError("servoTransferFunction must be a callable.")
-        
-        if linkageFunction is not None and not callable(linkageFunction):
-            raise TypeError("linkageFunction must be a callable.")
-        
-        self._linkageFunction = linkageFunction
-        self._servoTransferFunction = servoTransferFunction
-    
-        self._angles = Quaternion()
-        self._targetAngles = Vector3()
-
         self._mass = sum(motor.GetMass(0) for motor in self._motors)
         
     def igniteMotor(self, motor: Motor|int, time: float) -> None:
@@ -96,6 +117,82 @@ class TVCMount(Actor):
         index = self._motors.index(motor)
         self._ignitionTimes[index] = time
 
+    def update(self, body: RigidBody, time: float) -> None:
+        """Update the control actor with the given rigid body and time.
+
+        Args:
+            body (RigidBody): The rigid body to update.
+            time (float): The time to update the control actor.
+        """
+        
+        self._time = time
+        
+        # Get the thrust from each motor
+        thrust = sum([motor.GetThrust(self._time - ignitionTime) if ignitionTime != -1 else motor.GetThrust(0) for motor, ignitionTime in zip(self._motors, self._ignitionTimes)])
+        self._mass = sum([motor.GetMass(self._time - ignitionTime) if ignitionTime != -1 else motor.GetMass(0) for motor, ignitionTime in zip(self._motors, self._ignitionTimes)])
+
+        self._thrustVec = Vector3(thrust, 0, 0)
+
+    def getForce(self) -> Vector3:
+        """Get the force applied by the control actor.
+
+        Returns:
+            Vector3: The force applied by the control actor in the local reference frame to the parent RigidBody.
+        """
+        
+        return self._thrustVec
+    
+    def getTorque(self) -> Vector3:
+        """Get the torque applied by the control actor.
+
+        Returns:
+            Vector3: The torque applied by the control actor in the local reference frame to the parent RigidBody.
+        """
+        
+        return Vector3(0.0, 0.0, 0.0)
+    
+    def getMass(self) -> float:
+        """Get the mass of the actor.
+        Returns:
+            float: The mass of the actor.
+        """
+
+        return self._mass / 1000
+
+class TVCMount(MotorMount):
+    
+    def __init__(self, motors: Motor|list[Motor], servoTransferFunction: Callable[[RigidBody, float, Vector3, float, float], Vector3], linkageFunction: Callable[[RigidBody, float, Vector3], Quaternion]) -> None:
+        """Initializes a new instance of the TVCMount class.
+
+        Args:
+            motors (Motor|list[Motor]): The motor or list of motors to be used in the mount.
+            servoTransferFunction (callable): The transfer function for the servo.
+
+        """
+        
+        if isinstance(motors, Motor):
+            self._motors = [motors]
+        else:
+            if not all(isinstance(motor, Motor) for motor in motors):
+                raise TypeError("All elements in motors must be of type Motor.")
+            self._motors = motors
+            
+        self._ignitionTimes = [-1.0] * len(self._motors)
+        
+        if servoTransferFunction is not None and not callable(servoTransferFunction):
+            raise TypeError("servoTransferFunction must be a callable.")
+        
+        if linkageFunction is not None and not callable(linkageFunction):
+            raise TypeError("linkageFunction must be a callable.")
+        
+        self._linkageFunction = linkageFunction
+        self._servoTransferFunction = servoTransferFunction
+    
+        self._angles: Quaternion = Quaternion()
+        self._targetAngles: Vector3 = Vector3()
+
+        self._mass = sum(motor.GetMass(0) for motor in self._motors)
+
     def linkageFunction(self, fn: Callable[[RigidBody, float, Vector3], Quaternion]) -> Callable[[RigidBody, float, Vector3], Quaternion]:
         """Set the linkage function for the TVCMount.
 
@@ -109,7 +206,7 @@ class TVCMount(Actor):
         self._linkageFunction = fn
         return self._linkageFunction
     
-    def transferFunction(self, fn: Callable[[RigidBody, float, Vector3, float, float], Quaternion]) -> Callable[[RigidBody, float, Vector3, float, float], Quaternion]:
+    def transferFunction(self, fn: Callable[[RigidBody, float, Vector3, float, float], Vector3]) -> Callable[[RigidBody, float, Vector3, float, float], Vector3]:
         """Set the transfer function for the TVCMount.
 
         Args:
@@ -371,6 +468,79 @@ class Fin(AeroComponent):
         """
         return Vector3(0.0, 0.0, 0.0)
 
+class FinCan(Actor):
+
+    def __init__(self, position: Vector3, dragFunction: Callable[[float, float, RigidBody], float], liftFunction: Callable[[float, float, RigidBody], float], presFunction: Callable[[RigidBody], float], area: float, radialDistance: float, finCount: int, offsetInitializer: Callable[[], float] = lambda: 0.0):
+
+        self.__fins: list[Fin] = [
+            Fin(Quaternion.fromEulerAngles(Vector3(ang, 0, 0)).rotate(Vector3(0, radialDistance, 0)) + position,
+                dragFunction,
+                liftFunction,
+                presFunction,
+                area,
+                ang) for ang in np.linspace(0, (np.pi*2)*((finCount-1)/finCount), finCount)
+        ]
+
+        for fin in self.__fins:
+            fin.setAngle(offsetInitializer())
+
+        self.__position = position
+
+    @property
+    def position(self) -> Vector3:
+        return self.__position
+
+    def getFins(self) -> list[Fin]:
+        return self.__fins
+
+    def update(self, body: RigidBody, time: float) -> None:
+        
+        for fin in self.__fins:
+            fin.update(body, time)
+    
+    def getForce(self) -> Vector3:
+
+        totalForce: Vector3 = Vector3()
+        for fin in self.__fins:
+            totalForce += fin.getForce()
+        
+        return totalForce
+
+    def getTorque(self) -> Vector3:
+
+        totalTorque: Vector3 = Vector3()
+        for fin in self.__fins:
+            totalTorque += fin.getTorque()
+            totalTorque += fin.position.cross(fin.getForce())
+        
+        return totalTorque
+    
+class SpinCan(FinCan):
+
+    def __init__(self, position: Vector3, dragFunction: Callable[[float, float, RigidBody], float], liftFunction: Callable[[float, float, RigidBody], float], presFunction: Callable[[RigidBody], float], area: float, radialDistance: float, finCount: int, offsetInitializer: Callable[[], float] = lambda: 0.0, rollCoefficient: float = 0.0):
+
+        super().__init__(position, dragFunction, liftFunction, presFunction, area, radialDistance, finCount, offsetInitializer)
+        self.__rollCoefficient: float = rollCoefficient
+
+    def getForce(self) -> Vector3:
+
+        totalForce: Vector3 = Vector3()
+        for fin in super().getFins():
+            totalForce += fin.getForce()
+        
+        return totalForce
+
+    def getTorque(self) -> Vector3:
+
+        totalTorque: Vector3 = Vector3()
+        for fin in super().getFins():
+            totalTorque += fin.getTorque()
+            forceTorque = fin.position.cross(fin.getForce())
+            forceTorque.x *= self.__rollCoefficient
+            totalTorque += forceTorque
+
+        return totalTorque
+
 class RocketBody(AeroComponent):
 
     def __init__(self, position: Vector3, dragFunction: Callable[[float, float, RigidBody], float], liftFunction: Callable[[float, float, RigidBody], float], presFunction: Callable[[RigidBody], float], areaFunction: Callable[[float, float, RigidBody], float]) -> None:
@@ -404,7 +574,8 @@ class RocketBody(AeroComponent):
         # Calculate angle of attack if velocity is non-zero
         if velMagnitude > 0:
 
-            aoa = airVelocity.angleBetween(body.rotation.rotate(Vector3(1.0, 0.0, 0.0)))
+            bodyAxisWorld = body.rotation.rotate(Vector3(1.0, 0.0, 0.0)).norm()
+            aoa = airVelocity.angleBetween(bodyAxisWorld)
             if aoa > np.pi / 2:
                 aoa = np.pi - aoa
 
@@ -413,19 +584,21 @@ class RocketBody(AeroComponent):
             sa = self._areaFunction(aoa, velMagnitude, body)
             pres = self._presFunction(body)
 
-            # Calculate lift and drag forces
+            # Aerodynamic force magnitudes.
             lift = 0.5 * cl * sa * pres * velMagnitude**2
             drag = 0.5 * cd * sa * pres * velMagnitude**2
 
-            # Calculate lift and drag vectors in world coordinates
-            if abs(aoa) > 1e-9:
-                self._liftVec = airVelocity.cross( body.rotation.rotate(Vector3(1.0, 0.0, 0.0))).cross(airVelocity).norm() * lift
-                self._liftVec = body.rotation.rotate(self._liftVec)
-            else:
-                self._liftVec = Vector3()
-
+            # Drag always opposes the airflow.
             self._dragVec = airVelocity.norm() * -drag
 
+            # Body lift/normal force should oppose the lateral component of airflow
+            # relative to the body axis (restoring, passive stability).
+            v_para = bodyAxisWorld * airVelocity.dot(bodyAxisWorld)
+            v_perp = airVelocity - v_para
+            if v_perp.len() > 1e-12 and abs(lift) > 0.0:
+                self._liftVec = v_perp.norm() * (-lift)
+            else:
+                self._liftVec = Vector3()
 
         else:
             self._liftVec = Vector3(0.0, 0.0, 0.0)
