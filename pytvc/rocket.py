@@ -1,6 +1,7 @@
 import numpy as np
 from .rigidBody import Vector3, Quaternion, RigidBody
 from .actor import Actor
+from loguru import logger
 
 class Rocket:
 
@@ -24,18 +25,18 @@ class Rocket:
             rotVel (Vector3): Initial rotational velocity of the rocket
         """
 
-        self._dryMass = dryMass
-        self._inertia = inertia
-        self._rigidBody = RigidBody(
+        self._dryMass: float = dryMass
+        self._inertia: Vector3 = inertia
+        self._rigidBody: RigidBody = RigidBody(
             dryMass, inertia, position, velocity, rotation, rotVel
         )
 
-        self._actors = []
-        self._actorPositions = []
+        self._actors: list[Actor] = []
+        self._actorPositions: list[Vector3] = []
 
-        self._accel = Vector3(0, 0, 0)
+        self._accel: Vector3 = Vector3(0, 0, 0)
         
-        self._time = 0.0
+        self._time: float = 0.0
 
     def getAccel(self) -> Vector3:
         """Gets the acceleration of the rocket.
@@ -144,15 +145,25 @@ class Rocket:
 
         for actor in self._actors:
             actor.update(self._rigidBody, self._time)
-            actorMass += actor.getMass()
+            if np.isnan(actor.getMass()) or np.isinf(actor.getMass()):
+                logger.error(f"Actor object {actor} has an invalid mass of {actor.getMass()}")
+            else:
+                actorMass += actor.getMass()
 
         self._rigidBody.mass = self._dryMass + actorMass
 
         for actor, position in zip(self._actors, self._actorPositions):
-            self._rigidBody.applyLocalTorque(actor.getTorque())
-            self._rigidBody.applyLocalForce(actor.getForce(), position)
+            if any([np.isnan(x) or np.isinf(x) for x in iter(actor.getForce())]):
+                logger.error(f"Actor <{actor}> returned invalid force of {actor.getForce()}")
+            else:
+                self._rigidBody.applyLocalForce(actor.getForce(), position)
 
-        self._rigidBody.applyForce(Vector3(-9.806 * self._dryMass, 0, 0), Vector3(0, 0, 0))
+            if any([np.isnan(x) or np.isinf(x) for x in iter(actor.getTorque())]):
+                logger.error(f"Actor <{actor}> returned invalid torque of {actor.getForce()}")
+            else:
+                self._rigidBody.applyLocalTorque(actor.getTorque())
+
+        self._rigidBody.applyForce(Vector3(-9.806 * self._rigidBody.mass, 0, 0), Vector3(0, 0, 0))
 
         if self._rigidBody.position.x <= 0:
             self._rigidBody.position = Vector3(0, self._rigidBody.position.y, self._rigidBody.position.z)
