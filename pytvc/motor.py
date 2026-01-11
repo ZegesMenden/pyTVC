@@ -65,7 +65,7 @@ def RSEParser(file: io.TextIOBase):
         logger.error(f"An unexpected error occurred: {e}")
         return
 
-    for lidx, data in enumerate(root[0][0][1]):
+    for data in root[0][0][1]:
         time, thrust, mass = (
             float(data.attrib["t"]),
             float(data.attrib["f"]),
