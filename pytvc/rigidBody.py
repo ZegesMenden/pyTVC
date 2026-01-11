@@ -467,7 +467,7 @@ class RigidBody:
             force (Vector3): Force to apply
         """
         self._accel += self.rotation.rotate(force) / self.mass
-        self.applyTorque(position.cross(force))
+        self.applyLocalTorque(position.cross(force))
 
     def update(self, dt: float) -> None:
         """Update the rigid body
