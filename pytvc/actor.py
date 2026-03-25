@@ -543,6 +543,160 @@ class SpinCan(FinCan):
 
         return totalTorque
 
+
+class Airbrake(Actor):
+
+    def __init__(
+        self,
+        position: Vector3,
+        bodyAngle: float,
+        area: float,
+        dragFunction: Callable[[float, float, RigidBody], float],
+        maxAngle: float = 60.0 * np.pi / 180.0,
+    ) -> None:
+
+        if not isinstance(position, Vector3):
+            raise TypeError("position must be of type Vector3")
+        if not callable(dragFunction):
+            raise TypeError("dragFunction must be callable")
+        if area <= 0:
+            raise ValueError("area must be > 0")
+        if maxAngle <= 0:
+            raise ValueError("maxAngle must be > 0")
+
+        self.position = position
+        self._bodyAngle = float(bodyAngle)
+        self._area = float(area)
+        self._dragFunction = dragFunction
+        self._maxAngle = float(maxAngle)
+        self._angle = 0.0
+
+        self.dragForces: list[Vector3] = []
+        self.__force = Vector3()
+        self.__torque = Vector3()
+        self.__lastDrag = Vector3()
+
+    def setAngle(self, angle: float) -> None:
+        self._angle = float(np.clip(angle, 0.0, self._maxAngle))
+
+    def getAngle(self) -> float:
+        return self._angle
+
+    def getBodyAngle(self) -> float:
+        return self._bodyAngle
+
+    def getLastDrag(self) -> Vector3:
+        return self.__lastDrag
+
+    def update(self, body: RigidBody, time: float) -> None:
+        self.__force = Vector3()
+        self.__torque = Vector3()
+        self.__lastDrag = Vector3()
+
+        bodyVelocity = body.rotation.conjugate().rotate(body.velocity)
+        bodyRotVel = body.rotation.conjugate().rotate(body.rotVel)
+        bodyVelocity = bodyVelocity + bodyRotVel.cross(self.position)
+
+        # Mounted around body X-axis, with flap deflection about local Y-axis.
+        brakeRotation = (
+            Quaternion.fromEulerAngles(Vector3(self._bodyAngle, 0, 0))
+            * Quaternion.fromEulerAngles(Vector3(0, self._angle, 0))
+        )
+
+        brakeVelocity = brakeRotation.conjugate().rotate(bodyVelocity)
+        flowSpeed = abs(brakeVelocity)
+        if flowSpeed <= 0.0:
+            return
+
+        flowDir = brakeVelocity.norm()
+        dragDirection = flowDir * -1.0
+
+        # Effective projected area grows with deflection.
+        effectiveArea = self._area * np.sin(abs(self._angle))
+        if effectiveArea <= 0.0:
+            return
+
+        cd = float(max(0.0, self._dragFunction(self._angle, flowSpeed, body)))
+        airDensity = 1.225
+        dragMag = 0.5 * airDensity * (flowSpeed ** 2) * effectiveArea * cd
+
+        dragFinFrame = dragDirection * dragMag
+        dragBodyFrame = brakeRotation.rotate(dragFinFrame)
+
+        self.dragForces.append(dragBodyFrame)
+        self.__lastDrag = dragBodyFrame
+        self.__force = dragBodyFrame
+
+    def getForce(self) -> Vector3:
+        return self.__force
+
+    def getTorque(self) -> Vector3:
+        return self.__torque
+
+
+class AirbrakeCan(Actor):
+
+    def __init__(
+        self,
+        position: Vector3,
+        dragFunction: Callable[[float, float, RigidBody], float],
+        area: float,
+        radialDistance: float,
+        brakeCount: int,
+        offsetInitializer: Callable[[], float] = lambda: 0.0,
+        maxAngle: float = 60.0 * np.pi / 180.0,
+    ) -> None:
+
+        if brakeCount <= 0:
+            raise ValueError("brakeCount must be > 0")
+
+        angles = np.linspace(0, (np.pi * 2.0) * ((brakeCount - 1) / brakeCount), brakeCount)
+        self.__brakes: list[Airbrake] = [
+            Airbrake(
+                position=Quaternion.fromEulerAngles(Vector3(ang, 0, 0)).rotate(Vector3(0, radialDistance, 0)) + position,
+                bodyAngle=ang,
+                area=area,
+                dragFunction=dragFunction,
+                maxAngle=maxAngle,
+            )
+            for ang in angles
+        ]
+
+        for brake in self.__brakes:
+            brake.setAngle(offsetInitializer())
+
+        self.__position = position
+
+    @property
+    def position(self) -> Vector3:
+        return self.__position
+
+    def getAirbrakes(self) -> list[Airbrake]:
+        return self.__brakes
+
+    def setAngle(self, angle: float) -> None:
+        for brake in self.__brakes:
+            brake.setAngle(angle)
+
+    def update(self, body: RigidBody, time: float) -> None:
+        for brake in self.__brakes:
+            brake.update(body, time)
+
+    def getForce(self) -> Vector3:
+        totalForce = Vector3()
+        for brake in self.__brakes:
+            totalForce += brake.getForce()
+        return totalForce
+
+    def getTorque(self) -> Vector3:
+        totalTorque = Vector3()
+        for brake in self.__brakes:
+            totalTorque += brake.position.cross(brake.getForce())
+        return totalTorque
+
+    def getDragVectors(self) -> list[Vector3]:
+        return [b.getLastDrag() for b in self.__brakes]
+
 class RocketBody(AeroComponent):
 
     def __init__(self, position: Vector3, dragFunction: Callable[[float, float, RigidBody], float], liftFunction: Callable[[float, float, RigidBody], float], presFunction: Callable[[RigidBody], float], areaFunction: Callable[[float, float, RigidBody], float]) -> None:
