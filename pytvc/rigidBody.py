@@ -1,23 +1,147 @@
 from __future__ import annotations
-from dataclasses import dataclass
-import numpy as np
-from loguru import logger
+
+import math
 from typing import Iterable
 
-@dataclass
+import numpy as np
+from loguru import logger
+
+try:
+    from numba import njit, float64, types  # type: ignore
+    NUMBA_ENABLED = True
+
+    _ROTATE_SIG = types.UniTuple(float64, 3)(float64, float64, float64, float64, float64, float64, float64)
+    _QMUL_SIG = types.UniTuple(float64, 4)(float64, float64, float64, float64, float64, float64, float64, float64)
+    _NORMQ_SIG = types.UniTuple(float64, 4)(float64, float64, float64, float64)
+    _AXANG_SIG = types.UniTuple(float64, 4)(float64, float64, float64, float64)
+except Exception:  # pragma: no cover - fallback when numba is unavailable
+    NUMBA_ENABLED = False
+    float64 = None
+    types = None
+
+    def njit(*args, **kwargs):
+        def decorator(func):
+            return func
+        return decorator
+
+    _ROTATE_SIG = None
+    _QMUL_SIG = None
+    _NORMQ_SIG = None
+    _AXANG_SIG = None  
+
+@njit(_ROTATE_SIG, cache=True, fastmath=True)
+def _rotate_xyz_kernel(
+    qw: float,
+    qx: float,
+    qy: float,
+    qz: float,
+    vx: float,
+    vy: float,
+    vz: float,
+) -> tuple[float, float, float]:
+    """Rotate vector (vx, vy, vz) by unit quaternion (qw, qx, qy, qz)."""
+    tx = 2.0 * (qy * vz - qz * vy)
+    ty = 2.0 * (qz * vx - qx * vz)
+    tz = 2.0 * (qx * vy - qy * vx)
+
+    rx = vx + qw * tx + (qy * tz - qz * ty)
+    ry = vy + qw * ty + (qz * tx - qx * tz)
+    rz = vz + qw * tz + (qx * ty - qy * tx)
+    return rx, ry, rz
+
+
+@njit(_QMUL_SIG, cache=True, fastmath=True)
+def _quat_mul_kernel(
+    aw: float,
+    ax: float,
+    ay: float,
+    az: float,
+    bw: float,
+    bx: float,
+    by: float,
+    bz: float,
+) -> tuple[float, float, float, float]:
+    return (
+        aw * bw - ax * bx - ay * by - az * bz,
+        aw * bx + ax * bw + ay * bz - az * by,
+        aw * by - ax * bz + ay * bw + az * bx,
+        aw * bz + ax * by - ay * bx + az * bw,
+    )
+
+
+@njit(_NORMQ_SIG, cache=True, fastmath=True)
+def _normalize_quat_kernel(
+    w: float,
+    x: float,
+    y: float,
+    z: float,
+) -> tuple[float, float, float, float]:
+    mag2 = w * w + x * x + y * y + z * z
+    if mag2 == 0.0:
+        return 1.0, 0.0, 0.0, 0.0
+    inv = 1.0 / math.sqrt(mag2)
+    return w * inv, x * inv, y * inv, z * inv
+
+
+@njit(_AXANG_SIG, cache=True, fastmath=True)
+def _axis_angle_unit_quat_kernel(
+    axis_x: float,
+    axis_y: float,
+    axis_z: float,
+    angle: float,
+) -> tuple[float, float, float, float]:
+    half = 0.5 * angle
+    s = math.sin(half)
+    c = math.cos(half)
+    return c, axis_x * s, axis_y * s, axis_z * s
+
+
+
+
+def warm_numba_cache() -> None:
+    """Force compilation of the hot-path kernels once for float64 signatures.
+
+    Useful if you want to pay the JIT cost during startup instead of on the
+    first simulation step. Safe to call multiple times.
+    """
+    if not NUMBA_ENABLED:
+        return
+    _rotate_xyz_kernel(1.0, 0.0, 0.0, 0.0, 1.0, 2.0, 3.0)
+    _quat_mul_kernel(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0)
+    _normalize_quat_kernel(1.0, 0.0, 0.0, 0.0)
+    _axis_angle_unit_quat_kernel(1.0, 0.0, 0.0, 0.1)
+
+# Automatically warm cache
+warm_numba_cache()
+
 class Vector3:
+    __slots__ = ("x", "y", "z")
 
     def __init__(self, x: float = 0.0, y: float = 0.0, z: float = 0.0) -> None:
-        """Initialize a Vector3 object
+        self.x = x
+        self.y = y
+        self.z = z
 
-        Args:
-            x (float, optional): x component of the vector. Defaults to 0.0.
-            y (float, optional): y component of the vector. Defaults to 0.0.
-            z (float, optional): z component of the vector. Defaults to 0.0.
-        """
-        self.x: float | int = x
-        self.y: float | int = y
-        self.z: float | int = z
+    def copy(self) -> Vector3:
+        return Vector3(self.x, self.y, self.z)
+
+    def set(self, x: float, y: float, z: float) -> Vector3:
+        self.x = x
+        self.y = y
+        self.z = z
+        return self
+
+    def zero(self) -> Vector3:
+        self.x = 0.0
+        self.y = 0.0
+        self.z = 0.0
+        return self
+
+    def copy_from(self, other: Vector3) -> Vector3:
+        self.x = other.x
+        self.y = other.y
+        self.z = other.z
+        return self
 
     def __add__(self, other: Vector3) -> Vector3:
         return Vector3(self.x + other.x, self.y + other.y, self.z + other.z)
@@ -30,95 +154,108 @@ class Vector3:
             return Vector3(self.x * other.x, self.y * other.y, self.z * other.z)
         return Vector3(self.x * other, self.y * other, self.z * other)
 
+    def __rmul__(self, other: float) -> Vector3:
+        return Vector3(self.x * other, self.y * other, self.z * other)
+
     def __truediv__(self, other: float | Vector3) -> Vector3:
         if isinstance(other, Vector3):
             return Vector3(self.x / other.x, self.y / other.y, self.z / other.z)
         return Vector3(self.x / other, self.y / other, self.z / other)
 
+    def __iadd__(self, other: Vector3) -> Vector3:
+        self.x += other.x
+        self.y += other.y
+        self.z += other.z
+        return self
+
+    def __isub__(self, other: Vector3) -> Vector3:
+        self.x -= other.x
+        self.y -= other.y
+        self.z -= other.z
+        return self
+
+    def add_scaled(self, other: Vector3, scale: float) -> Vector3:
+        self.x += other.x * scale
+        self.y += other.y * scale
+        self.z += other.z * scale
+        return self
+
+    def add_div_components(self, a: Vector3, b: Vector3) -> Vector3:
+        self.x += a.x / b.x
+        self.y += a.y / b.y
+        self.z += a.z / b.z
+        return self
+
     def __eq__(self, other: object) -> bool:
-        if not isinstance(other, Vector3): return False
+        if not isinstance(other, Vector3):
+            return False
         return self.x == other.x and self.y == other.y and self.z == other.z
 
     def __ne__(self, other: object) -> bool:
         return not self.__eq__(other)
 
     def __iter__(self) -> Iterable[float]:
-        return iter([self.x, self.y, self.z])
+        yield self.x
+        yield self.y
+        yield self.z
 
     def __getitem__(self, index: int) -> float:
-        return [self.x, self.y, self.z][index]
+        if index == 0:
+            return self.x
+        if index == 1:
+            return self.y
+        if index == 2:
+            return self.z
+        raise IndexError(index)
+
+    def mag2(self) -> float:
+        x = self.x
+        y = self.y
+        z = self.z
+        return x * x + y * y + z * z
 
     def __abs__(self) -> float:
-        return np.sqrt(self.x**2 + self.y**2 + self.z**2)
+        return math.sqrt(self.mag2())
 
     def len(self) -> float:
-        """Calculate the magnitude of a Vector3 object
-
-        Returns:
-            float: Magnitude of the Vector3 object
-        """
         return abs(self)
 
     def norm(self) -> Vector3:
-        """Normalize a Vector3 object
-
-        Returns:
-            Vector3: Normalized Vector3 object
-        """
-        try:
-            ret: Vector3 = self / abs(self)
-        except ZeroDivisionError:
+        mag2 = self.mag2()
+        if mag2 == 0.0:
             logger.warning("Vector3 norm: Division by zero")
-            ret = Vector3(0.0, 0.0, 0.0)
-        return ret
+            return Vector3(0.0, 0.0, 0.0)
+        inv = 1.0 / math.sqrt(mag2)
+        return Vector3(self.x * inv, self.y * inv, self.z * inv)
 
     def cross(self, other: Vector3) -> Vector3:
-        """Calculate the cross product of two Vector3 objects
-
-        Args:
-            other (Vector3): Vector3 object to calculate the cross product with
-
-        Returns:
-            Vector3: Cross product of the two Vector3 objects
-        """
+        ax = self.x
+        ay = self.y
+        az = self.z
+        bx = other.x
+        by = other.y
+        bz = other.z
         return Vector3(
-            self.y * other.z - self.z * other.y,
-            self.z * other.x - self.x * other.z,
-            self.x * other.y - self.y * other.x,
+            ay * bz - az * by,
+            az * bx - ax * bz,
+            ax * by - ay * bx,
         )
 
     def dot(self, other: Vector3) -> float:
-        """Calculate the dot product of two Vector3 objects
-
-        Args:
-            other (Vector3): Vector3 object to calculate the dot product with
-
-        Returns:
-            float: Dot product of the two Vector3 objects
-        """
         return self.x * other.x + self.y * other.y + self.z * other.z
 
     def angleBetween(self, other: Vector3) -> float:
-        """Calculate the angle between two Vector3 objects
-
-        Args:
-            other (Vector3): Vector3 object to calculate the angle with
-
-        Returns:
-            float: Angle between the two Vector3 objects in radians
-        """
-        try:
-            inp: float = self.dot(other) / (abs(self) * abs(other))
-            if abs(inp) > 1.0:
-                logger.warning(
-                    "Vector3 angleBetween: Value out of range, clamping to 1.0"
-                )
-                inp = np.clip(inp, -1.0, 1.0)
-            ret: float = np.arccos(inp)
-        except ZeroDivisionError:
+        a2 = self.mag2()
+        b2 = other.mag2()
+        if a2 == 0.0 or b2 == 0.0:
             logger.warning("Vector3 angleBetween: Division by zero")
-            ret: float = 0.0
-        return ret
+            return 0.0
+        inp = self.dot(other) / math.sqrt(a2 * b2)
+        if inp < -1.0:
+            inp = -1.0
+        elif inp > 1.0:
+            inp = 1.0
+        return math.acos(inp)
 
     def __repr__(self) -> str:
         return f"Vector3({self.x}, {self.y}, {self.z})"
@@ -127,24 +264,26 @@ class Vector3:
         return self.__repr__()
 
 
-@dataclass
 class Quaternion:
+    __slots__ = ("w", "x", "y", "z")
 
     def __init__(
         self, w: float = 1.0, x: float = 0.0, y: float = 0.0, z: float = 0.0
     ) -> None:
-        """Initialize a Quaternion object
-
-        Args:
-            w (float, optional): Real component of the quaternion. Defaults to 1.0.
-            x (float, optional): i component of the quaternion. Defaults to 0.0.
-            y (float, optional): j component of the quaternion. Defaults to 0.0.
-            z (float, optional): k component of the quaternion. Defaults to 0.0.
-        """
         self.w = w
         self.x = x
         self.y = y
         self.z = z
+
+    def copy(self) -> Quaternion:
+        return Quaternion(self.w, self.x, self.y, self.z)
+
+    def set(self, w: float, x: float, y: float, z: float) -> Quaternion:
+        self.w = w
+        self.x = x
+        self.y = y
+        self.z = z
+        return self
 
     def __add__(self, other: Quaternion) -> Quaternion:
         return Quaternion(
@@ -156,37 +295,33 @@ class Quaternion:
             self.w - other.w, self.x - other.x, self.y - other.y, self.z - other.z
         )
 
-    def __mul__(self, other: Quaternion) -> Quaternion:
+    def __mul__(self, other: float | Quaternion) -> Quaternion:
         if not isinstance(other, Quaternion):
             return Quaternion(
                 self.w * other, self.x * other, self.y * other, self.z * other
             )
+        w, x, y, z = _quat_mul_kernel(
+            self.w, self.x, self.y, self.z, other.w, other.x, other.y, other.z
+        )
+        return Quaternion(w, x, y, z)
+
+    def __rmul__(self, other: float) -> Quaternion:
         return Quaternion(
-            self.w * other.w - self.x * other.x - self.y * other.y - self.z * other.z,
-            self.w * other.x + self.x * other.w + self.y * other.z - self.z * other.y,
-            self.w * other.y - self.x * other.z + self.y * other.w + self.z * other.x,
-            self.w * other.z + self.x * other.y - self.y * other.x + self.z * other.w,
+            self.w * other, self.x * other, self.y * other, self.z * other
         )
 
     def __truediv__(self, other: float | int) -> Quaternion:
-        try:
-            divisor = float(other)
-            return Quaternion(
-                self.w / divisor, self.x / divisor, self.y / divisor, self.z / divisor
-            )
-        except ZeroDivisionError:
+        divisor = float(other)
+        if divisor == 0.0:
             logger.warning("Quaternion division by zero")
-
-            # Return a zero quaternion if division by zero occurs
             return Quaternion(0.0, 0.0, 0.0, 0.0)
-        except TypeError:
-            logger.warning(f"Quaternion division by non-numeric type {type(other)}")
-
-            # Return a zero quaternion if division by non-float occurs
-            return Quaternion(0.0, 0.0, 0.0, 0.0)
+        return Quaternion(
+            self.w / divisor, self.x / divisor, self.y / divisor, self.z / divisor
+        )
 
     def __eq__(self, other: object) -> bool:
-        if not isinstance(other, Quaternion): return False
+        if not isinstance(other, Quaternion):
+            return False
         return (
             self.w == other.w
             and self.x == other.x
@@ -198,124 +333,120 @@ class Quaternion:
         return not self.__eq__(other)
 
     def __iter__(self) -> Iterable[float]:
-        return iter([self.w, self.x, self.y, self.z])
+        yield self.w
+        yield self.x
+        yield self.y
+        yield self.z
 
     def __getitem__(self, index: int) -> float:
-        return [self.w, self.x, self.y, self.z][index]
+        if index == 0:
+            return self.w
+        if index == 1:
+            return self.x
+        if index == 2:
+            return self.y
+        if index == 3:
+            return self.z
+        raise IndexError(index)
 
     def conjugate(self) -> Quaternion:
-        """Calculate the conjugate of a Quaternion object
-
-        Returns:
-            Quaternion: Conjugate of the Quaternion object
-        """
         return Quaternion(self.w, -self.x, -self.y, -self.z)
 
+    def mag2(self) -> float:
+        w = self.w
+        x = self.x
+        y = self.y
+        z = self.z
+        return w * w + x * x + y * y + z * z
+
     def __abs__(self) -> float:
-        return np.sqrt(self.w**2 + self.x**2 + self.y**2 + self.z**2)
+        return math.sqrt(self.mag2())
 
     def len(self) -> float:
-        """Calculate the magnitude of a Quaternion object
-
-        Returns:
-            float: Magnitude of the Quaternion object
-        """
         return abs(self)
 
     def norm(self) -> Quaternion:
-        """Normalize a Quaternion object
-
-        Returns:
-            Quaternion: Normalized Quaternion object
-        """
-        len = abs(self)
-        if len == 0:
+        w, x, y, z = _normalize_quat_kernel(self.w, self.x, self.y, self.z)
+        if w == 1.0 and x == 0.0 and y == 0.0 and z == 0.0 and self.mag2() == 0.0:
             logger.warning("Quaternion norm: Division by zero")
-            return Quaternion(0.0, 0.0, 0.0, 0.0)
-        return Quaternion(self.w / len, self.x / len, self.y / len, self.z / len)
+        return Quaternion(w, x, y, z)
+
+    def normalize_ip(self) -> Quaternion:
+        old_mag2 = self.mag2()
+        self.w, self.x, self.y, self.z = _normalize_quat_kernel(
+            self.w, self.x, self.y, self.z
+        )
+        if old_mag2 == 0.0:
+            logger.warning("Quaternion normalize_ip: Division by zero")
+        return self
+
+    def rotate_into(self, v: Vector3, out: Vector3) -> Vector3:
+        """Rotate a vector by this quaternion into a preallocated output vector.
+
+        This hot-path method assumes the quaternion is already normalized.
+        """
+        out.x, out.y, out.z = _rotate_xyz_kernel(
+            self.w, self.x, self.y, self.z, v.x, v.y, v.z
+        )
+        return out
+
+    def rotate_xyz_into(self, vx: float, vy: float, vz: float, out: Vector3) -> Vector3:
+        """Rotate raw xyz scalars into a preallocated output vector.
+
+        This hot-path method assumes the quaternion is already normalized.
+        """
+        out.x, out.y, out.z = _rotate_xyz_kernel(
+            self.w, self.x, self.y, self.z, vx, vy, vz
+        )
+        return out
 
     def rotate(self, v: Vector3) -> Vector3:
-        """Rotate a Vector3 object by a Quaternion object
+        """Rotate a Vector3 by this quaternion.
 
-        Args:
-            v (Vector3): Vector3 object to rotate
-
-        Returns:
-            Vector3: Rotated Vector3 object
+        This method assumes the quaternion is already normalized. Use rotateSafe()
+        if you need the old normalize-on-every-call behavior.
         """
-        try:
-            qv = Quaternion(0, v.x, v.y, v.z)
-        except TypeError:
-            logger.warning("Quaternion rotate: Invalid Vector3 object")
-            return Vector3(0.0, 0.0, 0.0)
-        return (self * qv * self.conjugate()).xyz
+        out = Vector3()
+        return self.rotate_into(v, out)
+
+    def rotateSafe(self, v: Vector3) -> Vector3:
+        """Compatibility path that normalizes first."""
+        q = self.norm()
+        out = Vector3()
+        return q.rotate_into(v, out)
 
     @property
     def xyz(self) -> Vector3:
-        """Get the xyz components of a Quaternion object
-
-        Returns:
-            Vector3: xyz components of the Quaternion object
-        """
         return Vector3(self.x, self.y, self.z)
 
     def dot(self, other: Quaternion) -> float:
-        """Calculate the dot product of two Quaternion objects
-
-        Args:
-            other (Quaternion): Quaternion object to calculate the dot product with
-
-        Returns:
-            float: Dot product of the two Quaternion objects
-        """
         return self.w * other.w + self.x * other.x + self.y * other.y + self.z * other.z
 
     @staticmethod
     def fromAxisAngle(axis: Vector3, angle: float) -> Quaternion:
-        """Create a Quaternion object from an axis and an angle
-
-        Args:
-            axis (Vector3): Axis of rotation
-            angle (float): Angle of rotation
-
-        Returns:
-            Quaternion: Quaternion object representing the rotation
-        """
-        halfAngle = angle / 2
-        return Quaternion(
-            np.cos(halfAngle),
-            axis.x * np.sin(halfAngle),
-            axis.y * np.sin(halfAngle),
-            axis.z * np.sin(halfAngle),
-        )
+        w, x, y, z = _axis_angle_unit_quat_kernel(axis.x, axis.y, axis.z, angle)
+        return Quaternion(w, x, y, z)
 
     def toAxisAngle(self) -> tuple[Vector3, float]:
-        """Convert a Quaternion object to an axis and an angle
-
-        Returns:
-            tuple[Vector3, float]: Axis and angle of rotation
-        """
-        angle = 2 * np.arccos(self.w)
-        axis = self.xyz / np.sin(angle / 2)
-        return axis, angle
+        q = self.norm()
+        w = max(-1.0, min(1.0, q.w))
+        angle = 2.0 * math.acos(w)
+        s = math.sin(0.5 * angle)
+        if s == 0.0:
+            return Vector3(1.0, 0.0, 0.0), 0.0
+        return Vector3(q.x / s, q.y / s, q.z / s), angle
 
     @staticmethod
     def fromEulerAngles(rot: Vector3) -> Quaternion:
-        """Create a Quaternion object from Euler angles
-
-        Args:
-            rot (Vector3): Euler angles
-
-        Returns:
-            Quaternion: Quaternion object representing the rotation
-        """
-        cy = np.cos(rot.z * 0.5)
-        sy = np.sin(rot.z * 0.5)
-        cp = np.cos(rot.y * 0.5)
-        sp = np.sin(rot.y * 0.5)
-        cr = np.cos(rot.x * 0.5)
-        sr = np.sin(rot.x * 0.5)
-
+        hx = 0.5 * rot.x
+        hy = 0.5 * rot.y
+        hz = 0.5 * rot.z
+        cr = math.cos(hx)
+        sr = math.sin(hx)
+        cp = math.cos(hy)
+        sp = math.sin(hy)
+        cy = math.cos(hz)
+        sy = math.sin(hz)
         return Quaternion(
             cr * cp * cy + sr * sp * sy,
             sr * cp * cy - cr * sp * sy,
@@ -325,67 +456,55 @@ class Quaternion:
 
     @staticmethod
     def fromRotationMatrix(mat) -> Quaternion:
-        """Create a Quaternion from a 3x3 rotation matrix.
-
-        Args:
-            mat: Rotation matrix as a list of lists or numpy array. A 4x4
-                homogeneous matrix is also accepted; only the upper-left 3x3
-                block is used.
-
-        Returns:
-            Quaternion: Quaternion representing the same rotation.
-        """
         m = np.asarray(mat, dtype=float)
         if m.shape == (4, 4):
             m = m[:3, :3]
         if m.shape != (3, 3):
             raise ValueError("Rotation matrix must be 3x3 or 4x4")
 
-        trace = np.trace(m)
+        trace = float(np.trace(m))
         if trace > 0.0:
-            s = np.sqrt(trace + 1.0) * 2.0
+            s = math.sqrt(trace + 1.0) * 2.0
             w = 0.25 * s
             x = (m[2, 1] - m[1, 2]) / s
             y = (m[0, 2] - m[2, 0]) / s
             z = (m[1, 0] - m[0, 1]) / s
         elif m[0, 0] > m[1, 1] and m[0, 0] > m[2, 2]:
-            s = np.sqrt(1.0 + m[0, 0] - m[1, 1] - m[2, 2]) * 2.0
+            s = math.sqrt(1.0 + m[0, 0] - m[1, 1] - m[2, 2]) * 2.0
             w = (m[2, 1] - m[1, 2]) / s
             x = 0.25 * s
             y = (m[0, 1] + m[1, 0]) / s
             z = (m[0, 2] + m[2, 0]) / s
         elif m[1, 1] > m[2, 2]:
-            s = np.sqrt(1.0 + m[1, 1] - m[0, 0] - m[2, 2]) * 2.0
+            s = math.sqrt(1.0 + m[1, 1] - m[0, 0] - m[2, 2]) * 2.0
             w = (m[0, 2] - m[2, 0]) / s
             x = (m[0, 1] + m[1, 0]) / s
             y = 0.25 * s
             z = (m[1, 2] + m[2, 1]) / s
         else:
-            s = np.sqrt(1.0 + m[2, 2] - m[0, 0] - m[1, 1]) * 2.0
+            s = math.sqrt(1.0 + m[2, 2] - m[0, 0] - m[1, 1]) * 2.0
             w = (m[1, 0] - m[0, 1]) / s
             x = (m[0, 2] + m[2, 0]) / s
             y = (m[1, 2] + m[2, 1]) / s
             z = 0.25 * s
 
-        return Quaternion(w, x, y, z).norm()
+        q = Quaternion(w, x, y, z)
+        q.normalize_ip()
+        return q
 
     def toEulerAngles(self) -> Vector3:
-        """Convert a Quaternion object to Euler angles
+        q = self.norm()
+        sinr_cosp = 2.0 * (q.w * q.x + q.y * q.z)
+        cosr_cosp = 1.0 - 2.0 * (q.x * q.x + q.y * q.y)
+        roll = math.atan2(sinr_cosp, cosr_cosp)
 
-        Returns:
-            Vector3: Vector3 object containing roll, pitch, and yaw angles
-        """
-        sinr_cosp = 2 * (self.w * self.x + self.y * self.z)
-        cosr_cosp = 1 - 2 * (self.x**2 + self.y**2)
-        roll = np.arctan2(sinr_cosp, cosr_cosp)
+        sinp = 2.0 * (q.w * q.y - q.z * q.x)
+        sinp = max(-1.0, min(1.0, sinp))
+        pitch = math.asin(sinp)
 
-        sinp = 2 * (self.w * self.y - self.z * self.x)
-        pitch = np.arcsin(sinp)
-
-        siny_cosp = 2 * (self.w * self.z + self.x * self.y)
-        cosy_cosp = 1 - 2 * (self.y**2 + self.z**2)
-        yaw = np.arctan2(siny_cosp, cosy_cosp)
-
+        siny_cosp = 2.0 * (q.w * q.z + q.x * q.y)
+        cosy_cosp = 1.0 - 2.0 * (q.y * q.y + q.z * q.z)
+        yaw = math.atan2(siny_cosp, cosy_cosp)
         return Vector3(roll, pitch, yaw)
 
     def __repr__(self) -> str:
@@ -396,6 +515,20 @@ class Quaternion:
 
 
 class RigidBody:
+    __slots__ = (
+        "mass",
+        "inv_mass",
+        "inertia",
+        "position",
+        "velocity",
+        "rotation",
+        "rotVel",
+        "_torque",
+        "_accel",
+        "_lastAccel",
+        "_tmp1",
+        "_tmp2",
+    )
 
     def __init__(
         self,
@@ -406,89 +539,113 @@ class RigidBody:
         rotation: Quaternion,
         rotVel: Vector3,
     ) -> None:
-        """Initialize a RigidBody object
-
-        Args:
-            mass (float): Mass of the rigid body
-            inertia (Vector3): Moment of inertia of the rigid body
-            position (Vector3): Position of the rigid body
-            velocity (Vector3): Velocity of the rigid body
-            rotation (Quaternion): Rotation of the rigid body
-            rotVel (Vector3): Angular velocity of the rigid body
-        """
         self.mass = mass
+        self.inv_mass = 1.0 / mass
         self.inertia = inertia
         self.position = position
         self.velocity = velocity
-        self.rotation = rotation
+        self.rotation = rotation.norm()
         self.rotVel = rotVel
 
         self._torque = Vector3()
         self._accel = Vector3()
         self._lastAccel = Vector3()
+        self._tmp1 = Vector3()
+        self._tmp2 = Vector3()
 
     def getAccel(self) -> Vector3:
-        """Get the acceleration of the rigid body
-
-        Returns:
-            Vector3: Acceleration of the rigid body
-        """
         return self._lastAccel
 
     def applyTorque(self, torque: Vector3) -> None:
-        """Apply a torque to the rigid body
+        self._torque.x += torque.x / self.inertia.x
+        self._torque.y += torque.y / self.inertia.y
+        self._torque.z += torque.z / self.inertia.z
 
-        Args:
-            torque (Vector3): Torque to apply
-        """
-        self._torque += torque / self.inertia
-    
     def applyLocalTorque(self, torque: Vector3) -> None:
-        """Apply a local torque to the rigid body
-
-        Args:
-            torque (Vector3): Torque to apply
-        """
-        self._torque += self.rotation.rotate(torque) / self.inertia
+        tmp = self._tmp1
+        self.rotation.rotate_into(torque, tmp)
+        self._torque.x += tmp.x / self.inertia.x
+        self._torque.y += tmp.y / self.inertia.y
+        self._torque.z += tmp.z / self.inertia.z
 
     def applyForce(self, force: Vector3, position: Vector3) -> None:
-        """Apply a force to the rigid body
+        self._accel.x += force.x * self.inv_mass
+        self._accel.y += force.y * self.inv_mass
+        self._accel.z += force.z * self.inv_mass
 
-        Args:
-            force (Vector3): Force to apply
-        """
-        self._accel += force / self.mass
-        self.applyTorque(position.cross(force))
+        px = position.x
+        py = position.y
+        pz = position.z
+        fx = force.x
+        fy = force.y
+        fz = force.z
+
+        tx = py * fz - pz * fy
+        ty = pz * fx - px * fz
+        tz = px * fy - py * fx
+
+        self._torque.x += tx / self.inertia.x
+        self._torque.y += ty / self.inertia.y
+        self._torque.z += tz / self.inertia.z
 
     def applyLocalForce(self, force: Vector3, position: Vector3) -> None:
-        """Apply a local force to the rigid body
+        world_force = self._tmp1
+        self.rotation.rotate_into(force, world_force)
 
-        Args:
-            force (Vector3): Force to apply
-        """
-        self._accel += self.rotation.rotate(force) / self.mass
-        self.applyLocalTorque(position.cross(force))
+        self._accel.x += world_force.x * self.inv_mass
+        self._accel.y += world_force.y * self.inv_mass
+        self._accel.z += world_force.z * self.inv_mass
+
+        px = position.x
+        py = position.y
+        pz = position.z
+        fx = force.x
+        fy = force.y
+        fz = force.z
+
+        tx = py * fz - pz * fy
+        ty = pz * fx - px * fz
+        tz = px * fy - py * fx
+
+        world_torque = self._tmp2
+        self.rotation.rotate_xyz_into(tx, ty, tz, world_torque)
+
+        self._torque.x += world_torque.x / self.inertia.x
+        self._torque.y += world_torque.y / self.inertia.y
+        self._torque.z += world_torque.z / self.inertia.z
 
     def update(self, dt: float) -> None:
-        """Update the rigid body
+        self.velocity.x += self._accel.x * dt
+        self.velocity.y += self._accel.y * dt
+        self.velocity.z += self._accel.z * dt
 
-        Args:
-            dt (float): Time step
-        """
-        self.velocity += self._accel * dt
-        self.position += self.velocity * dt
+        self.position.x += self.velocity.x * dt
+        self.position.y += self.velocity.y * dt
+        self.position.z += self.velocity.z * dt
 
-        rotVelMag = abs(self.rotVel)
-        if abs(rotVelMag) > 0:
-            axis = self.rotVel.norm()
-            self.rotation: Quaternion = (
-                Quaternion.fromAxisAngle(axis, rotVelMag * dt) * self.rotation
+        wx = self.rotVel.x
+        wy = self.rotVel.y
+        wz = self.rotVel.z
+        wmag2 = wx * wx + wy * wy + wz * wz
+
+        if wmag2 > 0.0:
+            wmag = math.sqrt(wmag2)
+            inv = 1.0 / wmag
+            dw, dx, dy, dz = _axis_angle_unit_quat_kernel(
+                wx * inv, wy * inv, wz * inv, wmag * dt
             )
-            self.rotation = self.rotation.norm()
+            rw, rx, ry, rz = _quat_mul_kernel(
+                dw, dx, dy, dz,
+                self.rotation.w, self.rotation.x, self.rotation.y, self.rotation.z,
+            )
+            self.rotation.w, self.rotation.x, self.rotation.y, self.rotation.z = _normalize_quat_kernel(
+                rw, rx, ry, rz
+            )
 
-        self.rotVel += self._torque * dt
+        self.rotVel.x += self._torque.x * dt
+        self.rotVel.y += self._torque.y * dt
+        self.rotVel.z += self._torque.z * dt
 
-        self._lastAccel = self._accel
-
-        self._torque = Vector3()
-        self._accel = Vector3()
+        self._lastAccel.copy_from(self._accel)
+        self._torque.zero()
+        self._accel.zero()
