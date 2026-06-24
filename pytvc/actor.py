@@ -1,14 +1,15 @@
 from .rigidBody import Vector3, Quaternion, RigidBody
 from collections.abc import Callable
 from .motor import Motor
+from .telemetry import Logger
 import numpy as np
 from loguru import logger
 
 class Actor:
-    
+
     def __init__(self):
         pass
-    
+
     def update(self, body: RigidBody, time: float) -> None:
         """Update the actor with the given rigid body and time.
 
@@ -17,7 +18,7 @@ class Actor:
             time (float): The time to update the actor.
         """
         pass
-    
+
     def getForce(self) -> Vector3:
         """Get the force applied by the actor.
 
@@ -25,7 +26,7 @@ class Actor:
             Vector3: The force applied by the actor in the local reference frame to the parent RigidBody.
         """
         return Vector3(0.0, 0.0, 0.0)
-    
+
     def getTorque(self) -> Vector3:
         """Get the torque applied by the actor.
 
@@ -33,7 +34,7 @@ class Actor:
             Vector3: The torque applied by the actor in the local reference frame to the parent RigidBody.
         """
         return Vector3(0.0, 0.0, 0.0)
-    
+
     def getMass(self) -> float:
         """Get the mass of the actor.
 
@@ -41,6 +42,24 @@ class Actor:
             float: The mass of the actor.
         """
         return 0.0
+
+    def logState(self, logger: Logger, prefix: str = "") -> None:
+        """Record this actor's relevant state into the given logger.
+
+        The base implementation records the quantities common to every actor:
+        the force and torque it currently applies to the parent body and its
+        mass. Subclasses should call ``super().logState(logger, prefix)`` first
+        and then add their own type-specific traces. The ``prefix`` argument lets
+        container actors namespace each child (e.g. ``"fin2_"``) within a single
+        logger.
+
+        Args:
+            logger (Logger): The logger to record into.
+            prefix (str): Optional name prefix prepended to every trace name.
+        """
+        logger.logVector(prefix + "force", self.getForce())
+        logger.logVector(prefix + "torque", self.getTorque())
+        logger.logScalar(prefix + "mass", self.getMass())
 
 class RollDampener(Actor):
 
@@ -77,6 +96,10 @@ class RollDampener(Actor):
             Vector3: The torque applied by the actor in the local reference frame to the parent RigidBody.
         """
         return self.__dampingTorque
+
+    def logState(self, logger: Logger, prefix: str = "") -> None:
+        super().logState(logger, prefix)
+        logger.logVector(prefix + "damping_torque", self.__dampingTorque)
 
 class MotorMount(Actor):
     
@@ -159,6 +182,14 @@ class MotorMount(Actor):
         """
 
         return self._mass / 1000
+
+    def logState(self, logger: Logger, prefix: str = "") -> None:
+        super().logState(logger, prefix)
+        logger.logScalar(prefix + "thrust", float(abs(self.getForce())))
+        logger.logScalar(prefix + "motor_mass_g", float(self._mass))
+        for i, ignitionTime in enumerate(self._ignitionTimes):
+            logger.logScalar(prefix + f"motor{i}_ignition_time", float(ignitionTime))
+            logger.logAuto(prefix + f"motor{i}_ignited", bool(ignitionTime != -1.0))
 
 class TVCMount(MotorMount):
     
@@ -292,8 +323,14 @@ class TVCMount(MotorMount):
         Returns:
             Vector3: The target angles of the TVCMount as euler angles.
         """
-        
+
         return self._targetAngles
+
+    def logState(self, logger: Logger, prefix: str = "") -> None:
+        super().logState(logger, prefix)
+        logger.logVector(prefix + "setpoint", self._targetAngles)
+        logger.logQuaternion(prefix + "gimbal", self._angles)
+        logger.logEuler(prefix + "gimbal", self._angles)
 
 class AeroComponent(Actor):
 
@@ -471,6 +508,13 @@ class Fin(AeroComponent):
         """
         return Vector3(0.0, 0.0, 0.0)
 
+    def logState(self, logger: Logger, prefix: str = "") -> None:
+        super().logState(logger, prefix)
+        logger.logScalar(prefix + "angle", self._angle)
+        logger.logScalar(prefix + "body_angle", self._bodyAngle)
+        logger.logVector(prefix + "lift", self.liftForces[-1] if self.liftForces else Vector3())
+        logger.logVector(prefix + "drag", self.dragForces[-1] if self.dragForces else Vector3())
+
 class FinCan(Actor):
 
     def __init__(self, position: Vector3, dragFunction: Callable[[float, float, RigidBody], float], liftFunction: Callable[[float, float, RigidBody], float], presFunction: Callable[[RigidBody], float], area: float, radialDistance: float, finCount: int, offsetInitializer: Callable[[], float] = lambda: 0.0):
@@ -515,9 +559,14 @@ class FinCan(Actor):
         for fin in self.__fins:
             totalTorque += fin.getTorque()
             totalTorque += fin.position.cross(fin.getForce()) * Vector3(1, 0, 0)
-        
+
         return totalTorque
-    
+
+    def logState(self, logger: Logger, prefix: str = "") -> None:
+        super().logState(logger, prefix)
+        for i, fin in enumerate(self.getFins()):
+            fin.logState(logger, prefix=f"{prefix}fin{i}_")
+
 class SpinCan(FinCan):
 
     def __init__(self, position: Vector3, dragFunction: Callable[[float, float, RigidBody], float], liftFunction: Callable[[float, float, RigidBody], float], presFunction: Callable[[RigidBody], float], area: float, radialDistance: float, finCount: int, offsetInitializer: Callable[[], float] = lambda: 0.0, rollCoefficient: float = 0.0):
@@ -633,6 +682,12 @@ class Airbrake(Actor):
     def getTorque(self) -> Vector3:
         return self.__torque
 
+    def logState(self, logger: Logger, prefix: str = "") -> None:
+        super().logState(logger, prefix)
+        logger.logScalar(prefix + "angle", self._angle)
+        logger.logScalar(prefix + "body_angle", self._bodyAngle)
+        logger.logVector(prefix + "last_drag", self.__lastDrag)
+
 
 class AirbrakeCan(Actor):
 
@@ -696,6 +751,11 @@ class AirbrakeCan(Actor):
 
     def getDragVectors(self) -> list[Vector3]:
         return [b.getLastDrag() for b in self.__brakes]
+
+    def logState(self, logger: Logger, prefix: str = "") -> None:
+        super().logState(logger, prefix)
+        for i, brake in enumerate(self.__brakes):
+            brake.logState(logger, prefix=f"{prefix}brake{i}_")
 
 class RocketBody(AeroComponent):
 
@@ -783,3 +843,8 @@ class RocketBody(AeroComponent):
         """
 
         return self._dragVec
+
+    def logState(self, logger: Logger, prefix: str = "") -> None:
+        super().logState(logger, prefix)
+        logger.logVector(prefix + "lift", self._liftVec)
+        logger.logVector(prefix + "drag", self._dragVec)
