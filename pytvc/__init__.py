@@ -5,3 +5,8 @@ import pytvc.rigidBody
 import pytvc.telemetry
 
 from pytvc.telemetry import SimClock, Logger, LogFormat, LogTrace, LogEntry
+
+try:
+    import pytvc.cpp as cpp
+except ImportError:
+    cpp = None
