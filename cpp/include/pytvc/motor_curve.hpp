@@ -20,6 +20,9 @@ public:
         if (time < Scalar(0)) {
             return Status::invalid_argument;
         }
+        if (points_.full()) {
+            return Status::full;
+        }
         if (!points_.empty() && time < points_[points_.size() - 1].time) {
             return Status::invalid_argument;
         }

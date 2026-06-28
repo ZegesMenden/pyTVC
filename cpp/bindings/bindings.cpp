@@ -1,5 +1,6 @@
 #include <memory>
 #include <sstream>
+#include <stdexcept>
 
 #include <pybind11/operators.h>
 #include <pybind11/pybind11.h>
@@ -38,7 +39,7 @@ void throw_on_bad(pytvc::Status status) {
         case pytvc::Status::non_finite:
             throw py::value_error("non-finite value");
     }
-    throw py::runtime_error("unknown pytvc status");
+    throw std::runtime_error("unknown pytvc status");
 }
 
 bool vec_equal(const pytvc::Vec3& a, const pytvc::Vec3& b) {
