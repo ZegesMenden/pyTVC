@@ -93,7 +93,17 @@ void test_math() {
 
     const Quat q = Quat::from_euler({Scalar(0), kPi / Scalar(2), Scalar(0)});
     near_vec(q.rotate({Scalar(1), Scalar(0), Scalar(0)}), {Scalar(0), Scalar(0), Scalar(-1)}, Scalar(1e-8), "quat rotate");
-    near_vec(q.to_euler(), {Scalar(0), kPi / Scalar(2), Scalar(0)}, Scalar(1e-8), "quat euler round trip");
+    const Quat euler_round_trip = Quat::from_euler(q.to_euler());
+    near_vec(
+        euler_round_trip.rotate({Scalar(1), Scalar(0), Scalar(0)}),
+        q.rotate({Scalar(1), Scalar(0), Scalar(0)}),
+        Scalar(1e-8),
+        "quat euler round trip x axis");
+    near_vec(
+        euler_round_trip.rotate({Scalar(0), Scalar(1), Scalar(0)}),
+        q.rotate({Scalar(0), Scalar(1), Scalar(0)}),
+        Scalar(1e-8),
+        "quat euler round trip y axis");
 }
 
 void test_motor_curve() {
@@ -195,6 +205,46 @@ void test_actors_and_rocket() {
     check(rocket.rigid_body().mass() > Scalar(2), "rocket actor mass contributes");
 }
 
+void test_spin_can_rotation() {
+    using namespace pytvc;
+
+    ConstantAero zero_aero(Scalar(0), Scalar(0));
+    ConstantPressure pressure;
+    SpinCan<4> spin_can;
+    check(ok(spin_can.configure(
+        {}, &zero_aero, &pressure, Scalar(1), Scalar(1), 2)),
+        "spin can configure fins");
+    check(
+        spin_can.configure_rotation(Scalar(-1), Scalar(1)) == Status::invalid_argument,
+        "spin can rejects negative damping");
+    check(
+        spin_can.configure_rotation(Scalar(1), Scalar(0)) == Status::invalid_argument,
+        "spin can rejects zero inertia");
+    check(ok(spin_can.configure_rotation(Scalar(1), Scalar(2), Scalar(2))),
+          "spin can configure rotation");
+
+    RigidBody body(
+        Scalar(1),
+        {Scalar(1), Scalar(1), Scalar(1)},
+        {},
+        {},
+        {},
+        {});
+    spin_can.update(body, Scalar(0.5));
+
+    near_scalar(spin_can.absolute_rate(), Scalar(1.5), Scalar(1e-9), "spin can absolute rate");
+    near_scalar(spin_can.relative_rate(), Scalar(1.5), Scalar(1e-9), "spin can relative rate");
+    near_scalar(spin_can.relative_angle(), Scalar(0.875), Scalar(1e-9), "spin can relative angle");
+    near_scalar(spin_can.aerodynamic_torque(), Scalar(0), Scalar(1e-9), "spin can aero torque");
+    near_scalar(spin_can.bearing_torque(), Scalar(-2), Scalar(1e-9), "spin can bearing torque");
+    near_scalar(spin_can.fin(0).body_angle(), Scalar(0.875), Scalar(1e-9), "spin can fin angle");
+    near_vec(
+        spin_can.fin(0).position(),
+        {Scalar(0), scalar_cos(Scalar(0.875)), scalar_sin(Scalar(0.875))},
+        Scalar(1e-9),
+        "spin can fin position");
+}
+
 void test_output_sink_wrapper() {
     pytvc::BufferOutputSink<8> sink;
     const char* message = "abcdefghi";
@@ -211,6 +261,7 @@ int main() {
     test_motor_curve();
     test_rigid_body();
     test_actors_and_rocket();
+    test_spin_can_rotation();
     test_output_sink_wrapper();
 
     if (failures == 0) {

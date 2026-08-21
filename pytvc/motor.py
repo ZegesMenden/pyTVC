@@ -4,7 +4,7 @@ import io
 from loguru import logger
 
 
-def RaspParser(file: io.TextIOBase):
+def RaspParser(file: str|io.TextIOBase):
     """RaspParser parses the RASP file and returns a list of tuples containing time, thrust, and mass values.
 
     Args:
@@ -15,28 +15,32 @@ def RaspParser(file: io.TextIOBase):
     """
 
     try:
-        for lidx, line in enumerate(file.readlines()):
-            vals = line.strip(" \n").split(" ")
-            if len(vals) == 2:
-                time, thrust = vals[0], vals[1]
+        with open(file, "r") as fileHandle:
+            try:
+                for lidx, line in enumerate(fileHandle.readlines()):
+                    vals = line.strip(" \n").split(" ")
+                    if len(vals) == 2:
+                        time, thrust = vals[0], vals[1]
 
-                try:
-                    thrust = float(thrust)
-                    time = float(time)
-                except ValueError:
-                    logger.warning(
-                        f"Invalid data in RASP file on line {lidx}: |{line.strip('\n')}|. Skipping this line."
-                    )
-                    continue
+                        try:
+                            thrust = float(thrust)
+                            time = float(time)
+                        except ValueError:
+                            logger.warning(
+                                f"Invalid data in RASP file on line {lidx}: |{line.strip('\n')}|. Skipping this line."
+                            )
+                            continue
 
-                if thrust < 0:
-                    logger.warning(f"Thrust value is negative: {thrust}.")
+                        if thrust < 0:
+                            logger.warning(f"Thrust value is negative: {thrust}.")
 
-                if time < 0:
-                    logger.warning(f"Time value is negative: {time}.")
+                        if time < 0:
+                            logger.warning(f"Time value is negative: {time}.")
 
-                yield time, thrust
-
+                        yield time, thrust
+            except Exception as e:
+                logger.error(f"An unexpected error occurred: {e}", exc_info=True)
+                return
     except FileNotFoundError as e:
         logger.error(f"File not found: {e}")
         return

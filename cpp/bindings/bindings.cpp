@@ -521,8 +521,12 @@ PYBIND11_MODULE(_pytvc_cpp, m) {
         .def("fin_count", &PyFinCan::fin_count)
         .def("getFins", [](PyFinCan& self) {
             py::list fins;
+            py::object parent = py::cast(&self, py::return_value_policy::reference);
             for (std::size_t i = 0; i < self.fin_count(); ++i) {
-                fins.append(py::cast(&self.fin(i), py::return_value_policy::reference_internal));
+                fins.append(py::cast(
+                    &self.fin(i),
+                    py::return_value_policy::reference_internal,
+                    parent));
             }
             return fins;
         })
@@ -530,7 +534,28 @@ PYBIND11_MODULE(_pytvc_cpp, m) {
 
     py::class_<PySpinCan, PyFinCan, std::shared_ptr<PySpinCan>>(m, "SpinCan")
         .def(py::init<>())
-        .def("set_roll_coefficient", &PySpinCan::set_roll_coefficient);
+        .def("configure_rotation", [](PySpinCan& self,
+                                       pytvc::Scalar rotation_damping_coefficient,
+                                       pytvc::Scalar rotational_inertia,
+                                       pytvc::Scalar initial_absolute_rate) {
+            throw_on_bad(self.configure_rotation(
+                rotation_damping_coefficient,
+                rotational_inertia,
+                initial_absolute_rate));
+        }, py::arg("rotation_damping_coefficient"),
+           py::arg("rotational_inertia"),
+           py::arg("initial_absolute_rate") = 0.0)
+        .def("set_roll_coefficient", &PySpinCan::set_roll_coefficient)
+        .def("getRelativeAngle", &PySpinCan::relative_angle)
+        .def("relative_angle", &PySpinCan::relative_angle)
+        .def("getRelativeRate", &PySpinCan::relative_rate)
+        .def("relative_rate", &PySpinCan::relative_rate)
+        .def("getAbsoluteRate", &PySpinCan::absolute_rate)
+        .def("absolute_rate", &PySpinCan::absolute_rate)
+        .def("getAerodynamicTorque", &PySpinCan::aerodynamic_torque)
+        .def("aerodynamic_torque", &PySpinCan::aerodynamic_torque)
+        .def("getBearingTorque", &PySpinCan::bearing_torque)
+        .def("bearing_torque", &PySpinCan::bearing_torque);
 
     py::class_<pytvc::Airbrake, pytvc::Actor, std::shared_ptr<pytvc::Airbrake>>(m, "Airbrake")
         .def(py::init<

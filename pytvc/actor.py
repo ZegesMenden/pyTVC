@@ -391,6 +391,7 @@ class Fin(AeroComponent):
         self._area: float = area
         self._angle: float = 0.0
         self._bodyAngle: float = angle
+        self._additionalVelocityBody: Vector3 = Vector3()
         self.liftForces: list[Vector3] = []
         self.dragForces: list[Vector3] = []
         self.__force: Vector3 = Vector3()
@@ -404,6 +405,15 @@ class Fin(AeroComponent):
 
     def getBodyAngle(self) -> float:
         return self._bodyAngle
+
+    def setBodyAngle(self, angle: float) -> None:
+        self._bodyAngle = float(angle)
+
+    def setAdditionalVelocityBody(self, velocity: Vector3) -> None:
+        """Set velocity caused by motion of this fin relative to the body."""
+        if not isinstance(velocity, Vector3):
+            raise TypeError("velocity must be of type Vector3")
+        self._additionalVelocityBody = velocity
 
     def getRotationBody(self) -> Quaternion:
         """Fin rotation relative to the rocket body frame.
@@ -436,7 +446,11 @@ class Fin(AeroComponent):
         # Convert world -> body first, then apply omega x r in the body frame.
         bodyVelocity = body.rotation.conjugate().rotate(body.velocity)
         bodyRotVel = body.rotation.conjugate().rotate(body.rotVel)
-        bodyVelocity = bodyVelocity + bodyRotVel.cross(self.position)
+        bodyVelocity = (
+            bodyVelocity
+            + bodyRotVel.cross(self.position)
+            + self._additionalVelocityBody
+        )
 
         # Orientation of the fin: body mounting angle then commanded deflection.
         finRotation: Quaternion = self.getRotationBody()
@@ -569,28 +583,143 @@ class FinCan(Actor):
 
 class SpinCan(FinCan):
 
-    def __init__(self, position: Vector3, dragFunction: Callable[[float, float, RigidBody], float], liftFunction: Callable[[float, float, RigidBody], float], presFunction: Callable[[RigidBody], float], area: float, radialDistance: float, finCount: int, offsetInitializer: Callable[[], float] = lambda: 0.0, rollCoefficient: float = 0.0):
+    def __init__(
+        self,
+        position: Vector3,
+        dragFunction: Callable[[float, float, RigidBody], float],
+        liftFunction: Callable[[float, float, RigidBody], float],
+        presFunction: Callable[[RigidBody], float],
+        area: float,
+        radialDistance: float,
+        finCount: int,
+        offsetInitializer: Callable[[], float] = lambda: 0.0,
+        rollCoefficient: float = 0.0,
+        rotationDampingCoefficient: float = 0.0,
+        rotationalInertia: float = 1.0,
+        initialAbsoluteRate: float = 0.0,
+    ):
+        """Create a fin can that rotates independently about the body X axis.
+
+        ``rotationDampingCoefficient`` is the viscous bearing damping in
+        N*m*s/rad and ``rotationalInertia`` is the can's roll inertia in kg*m^2.
+        Angles and rates exposed by this class are relative to the airframe.
+        """
+        if not np.isfinite(rotationDampingCoefficient) or rotationDampingCoefficient < 0:
+            raise ValueError("rotationDampingCoefficient must be >= 0")
+        if not np.isfinite(rotationalInertia) or rotationalInertia <= 0:
+            raise ValueError("rotationalInertia must be > 0")
+        if not np.isfinite(initialAbsoluteRate):
+            raise ValueError("initialAbsoluteRate must be finite")
 
         super().__init__(position, dragFunction, liftFunction, presFunction, area, radialDistance, finCount, offsetInitializer)
-        self.__rollCoefficient: float = rollCoefficient
+        self.__rollCoefficient = float(rollCoefficient)
+        self.__rotationDampingCoefficient = float(rotationDampingCoefficient)
+        self.__rotationalInertia = float(rotationalInertia)
+        self.__absoluteRate = float(initialAbsoluteRate)
+        self.__relativeRate = float(initialAbsoluteRate)
+        self.__relativeAngle = 0.0
+        self.__aerodynamicTorque = 0.0
+        self.__bearingTorque = 0.0
+        self.__lastUpdateTime = 0.0
+        self.__hasUpdated = False
 
-    def getForce(self) -> Vector3:
+    def __rotateFins(self, angle: float) -> None:
+        if angle == 0.0:
+            return
+        rotation = Quaternion.fromEulerAngles(Vector3(angle, 0.0, 0.0))
+        for fin in self.getFins():
+            radialPosition = fin.position - self.position
+            fin.position = rotation.rotate(radialPosition) + self.position
+            fin.setBodyAngle(fin.getBodyAngle() + angle)
 
-        totalForce: Vector3 = Vector3()
-        for fin in super().getFins():
-            totalForce += fin.getForce()
-        
-        return totalForce
+    def __updateFinVelocities(self) -> None:
+        angularVelocity = Vector3(self.__relativeRate, 0.0, 0.0)
+        for fin in self.getFins():
+            fin.setAdditionalVelocityBody(
+                angularVelocity.cross(fin.position - self.position)
+            )
+
+    def update(self, body: RigidBody, time: float) -> None:
+        self.__updateFinVelocities()
+        super().update(body, time)
+
+        bodyRollRate = body.rotation.conjugate().rotate(body.rotVel).x
+        previousRelativeRate = (
+            self.__relativeRate
+            if self.__hasUpdated
+            else self.__absoluteRate - bodyRollRate
+        )
+        dt = max(0.0, float(time) - self.__lastUpdateTime)
+
+        self.__aerodynamicTorque = sum(
+            (fin.position - self.position).cross(fin.getForce()).x
+            for fin in self.getFins()
+        )
+        self.__bearingTorque = -self.__rotationDampingCoefficient * (
+            self.__absoluteRate - bodyRollRate
+        )
+        self.__absoluteRate += (
+            (self.__aerodynamicTorque + self.__bearingTorque)
+            / self.__rotationalInertia
+        ) * dt
+        self.__relativeRate = self.__absoluteRate - bodyRollRate
+        angleStep = 0.5 * (previousRelativeRate + self.__relativeRate) * dt
+        self.__relativeAngle += angleStep
+        self.__rotateFins(angleStep)
+
+        self.__lastUpdateTime = float(time)
+        self.__hasUpdated = True
+
+    def getRelativeAngle(self) -> float:
+        return self.__relativeAngle
+
+    def getRelativeRate(self) -> float:
+        return self.__relativeRate
+
+    def getAbsoluteRate(self) -> float:
+        return self.__absoluteRate
+
+    def getAerodynamicTorque(self) -> float:
+        return self.__aerodynamicTorque
+
+    def getBearingTorque(self) -> float:
+        return self.__bearingTorque
+
+    def relative_angle(self) -> float:
+        return self.getRelativeAngle()
+
+    def relative_rate(self) -> float:
+        return self.getRelativeRate()
+
+    def absolute_rate(self) -> float:
+        return self.getAbsoluteRate()
+
+    def aerodynamic_torque(self) -> float:
+        return self.getAerodynamicTorque()
+
+    def bearing_torque(self) -> float:
+        return self.getBearingTorque()
 
     def getTorque(self) -> Vector3:
-
-        totalTorque: Vector3 = Vector3()
-        for fin in super().getFins():
+        totalTorque = Vector3()
+        for fin in self.getFins():
             totalTorque += fin.getTorque()
-            forceTorque = fin.position.cross(fin.getForce()) * Vector3(self.__rollCoefficient, 0, 0)
-            totalTorque += forceTorque
-
+        aerodynamicTorque = self.__aerodynamicTorque
+        if not self.__hasUpdated:
+            aerodynamicTorque = sum(
+                (fin.position - self.position).cross(fin.getForce()).x
+                for fin in self.getFins()
+            )
+        totalTorque += Vector3(self.__rollCoefficient * aerodynamicTorque, 0.0, 0.0)
         return totalTorque
+
+    def logState(self, logger: Logger, prefix: str = "") -> None:
+        super().logState(logger, prefix)
+        logger.logScalar(prefix + "relative_angle", self.__relativeAngle)
+        logger.logScalar(prefix + "relative_rate", self.__relativeRate)
+        logger.logScalar(prefix + "absolute_rate", self.__absoluteRate)
+        logger.logScalar(prefix + "aerodynamic_torque", self.__aerodynamicTorque)
+        logger.logScalar(prefix + "bearing_torque", self.__bearingTorque)
 
 
 class Airbrake(Actor):

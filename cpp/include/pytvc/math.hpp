@@ -6,49 +6,49 @@ namespace pytvc {
 
 inline Scalar scalar_sqrt(Scalar value) {
 #if PYTVC_SCALAR_DOUBLE
-    return __builtin_sqrt(value);
+    return sqrt(value);
 #else
-    return __builtin_sqrtf(value);
+    return sqrtf(value);
 #endif
 }
 
 inline Scalar scalar_sin(Scalar value) {
 #if PYTVC_SCALAR_DOUBLE
-    return __builtin_sin(value);
+    return sin(value);
 #else
-    return __builtin_sinf(value);
+    return sinf(value);
 #endif
 }
 
 inline Scalar scalar_cos(Scalar value) {
 #if PYTVC_SCALAR_DOUBLE
-    return __builtin_cos(value);
+    return cos(value);
 #else
-    return __builtin_cosf(value);
+    return cosf(value);
 #endif
 }
 
 inline Scalar scalar_acos(Scalar value) {
 #if PYTVC_SCALAR_DOUBLE
-    return __builtin_acos(value);
+    return acos(value);
 #else
-    return __builtin_acosf(value);
+    return acosf(value);
 #endif
 }
 
 inline Scalar scalar_asin(Scalar value) {
 #if PYTVC_SCALAR_DOUBLE
-    return __builtin_asin(value);
+    return asin(value);
 #else
-    return __builtin_asinf(value);
+    return asinf(value);
 #endif
 }
 
 inline Scalar scalar_atan2(Scalar y, Scalar x) {
 #if PYTVC_SCALAR_DOUBLE
-    return __builtin_atan2(y, x);
+    return atan2(y, x);
 #else
-    return __builtin_atan2f(y, x);
+    return atan2f(y, x);
 #endif
 }
 

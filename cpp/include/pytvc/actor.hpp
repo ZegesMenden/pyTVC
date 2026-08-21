@@ -249,6 +249,18 @@ public:
     const Vec3& last_lift_body() const { return lift_body_; }
     const Vec3& last_drag_body() const { return drag_body_; }
 
+    void set_position(const Vec3& position) {
+        position_ = position;
+    }
+
+    void set_body_angle(Scalar body_angle) {
+        body_angle_ = body_angle;
+    }
+
+    void set_additional_velocity_body(const Vec3& velocity) {
+        additional_velocity_body_ = velocity;
+    }
+
     void set_angle(Scalar angle) {
         angle_ = angle;
     }
@@ -270,7 +282,7 @@ public:
 
         Vec3 body_velocity = body.rotation().conjugate().rotate(body.velocity());
         const Vec3 body_rot_vel = body.rotation().conjugate().rotate(body.rot_vel());
-        body_velocity += body_rot_vel.cross(position_);
+        body_velocity += body_rot_vel.cross(position_) + additional_velocity_body_;
 
         const Quat fin_rotation = rotation_body();
         const Vec3 fin_velocity = fin_rotation.conjugate().rotate(body_velocity);
@@ -312,6 +324,7 @@ private:
     Scalar area_ = Scalar(0);
     Scalar angle_ = Scalar(0);
     Scalar body_angle_ = Scalar(0);
+    Vec3 additional_velocity_body_{};
     Vec3 lift_body_{};
     Vec3 drag_body_{};
     Vec3 force_{};
@@ -388,21 +401,108 @@ protected:
 template <std::size_t MaxFins>
 class SpinCan final : public FinCan<MaxFins> {
 public:
+    Status configure_rotation(
+        Scalar rotation_damping_coefficient,
+        Scalar rotational_inertia,
+        Scalar initial_absolute_rate = Scalar(0)) {
+        if (!(rotation_damping_coefficient >= Scalar(0)) || !(rotational_inertia > Scalar(0))) {
+            return Status::invalid_argument;
+        }
+
+        rotation_damping_coefficient_ = rotation_damping_coefficient;
+        rotational_inertia_ = rotational_inertia;
+        absolute_rate_ = initial_absolute_rate;
+        relative_rate_ = initial_absolute_rate;
+        relative_angle_ = Scalar(0);
+        aerodynamic_torque_ = Scalar(0);
+        bearing_torque_ = Scalar(0);
+        last_update_time_ = Scalar(0);
+        has_updated_ = false;
+        return Status::ok;
+    }
+
     void set_roll_coefficient(Scalar roll_coefficient) {
         roll_coefficient_ = roll_coefficient;
+    }
+
+    Scalar relative_angle() const { return relative_angle_; }
+    Scalar relative_rate() const { return relative_rate_; }
+    Scalar absolute_rate() const { return absolute_rate_; }
+    Scalar aerodynamic_torque() const { return aerodynamic_torque_; }
+    Scalar bearing_torque() const { return bearing_torque_; }
+
+    void update(const RigidBody& body, Scalar time) override {
+        const Vec3 relative_angular_velocity{relative_rate_, Scalar(0), Scalar(0)};
+        for (auto& fin : this->fins_) {
+            fin.set_additional_velocity_body(
+                relative_angular_velocity.cross(fin.position() - this->position_));
+        }
+        FinCan<MaxFins>::update(body, time);
+
+        const Scalar body_roll_rate = body.rotation().conjugate().rotate(body.rot_vel()).x;
+        const Scalar previous_relative_rate = has_updated_
+            ? relative_rate_
+            : absolute_rate_ - body_roll_rate;
+        const Scalar dt = time > last_update_time_ ? time - last_update_time_ : Scalar(0);
+
+        aerodynamic_torque_ = Scalar(0);
+        for (const auto& fin : this->fins_) {
+            const Vec3 radial_position = fin.position() - this->position_;
+            aerodynamic_torque_ += radial_position.cross(fin.force()).x;
+        }
+        bearing_torque_ = -rotation_damping_coefficient_ * (absolute_rate_ - body_roll_rate);
+        absolute_rate_ += ((aerodynamic_torque_ + bearing_torque_) / rotational_inertia_) * dt;
+        relative_rate_ = absolute_rate_ - body_roll_rate;
+
+        const Scalar angle_step =
+            Scalar(0.5) * (previous_relative_rate + relative_rate_) * dt;
+        relative_angle_ += angle_step;
+        rotate_fins(angle_step);
+
+        last_update_time_ = time;
+        has_updated_ = true;
     }
 
     Vec3 torque() const override {
         Vec3 total{};
         for (const auto& fin : this->fins_) {
             total += fin.torque();
-            total += fin.position().cross(fin.force()) * Vec3{roll_coefficient_, Scalar(0), Scalar(0)};
         }
+        Scalar aerodynamic_torque = aerodynamic_torque_;
+        if (!has_updated_) {
+            aerodynamic_torque = Scalar(0);
+            for (const auto& fin : this->fins_) {
+                const Vec3 radial_position = fin.position() - this->position_;
+                aerodynamic_torque += radial_position.cross(fin.force()).x;
+            }
+        }
+        total += Vec3{roll_coefficient_ * aerodynamic_torque, Scalar(0), Scalar(0)};
         return total;
     }
 
 private:
+    void rotate_fins(Scalar angle) {
+        if (angle == Scalar(0)) {
+            return;
+        }
+        const Quat rotation = Quat::from_euler({angle, Scalar(0), Scalar(0)});
+        for (auto& fin : this->fins_) {
+            const Vec3 radial_position = fin.position() - this->position_;
+            fin.set_position(rotation.rotate(radial_position) + this->position_);
+            fin.set_body_angle(fin.body_angle() + angle);
+        }
+    }
+
     Scalar roll_coefficient_ = Scalar(0);
+    Scalar rotation_damping_coefficient_ = Scalar(0);
+    Scalar rotational_inertia_ = Scalar(1);
+    Scalar absolute_rate_ = Scalar(0);
+    Scalar relative_rate_ = Scalar(0);
+    Scalar relative_angle_ = Scalar(0);
+    Scalar aerodynamic_torque_ = Scalar(0);
+    Scalar bearing_torque_ = Scalar(0);
+    Scalar last_update_time_ = Scalar(0);
+    bool has_updated_ = false;
 };
 
 class Airbrake : public Actor {

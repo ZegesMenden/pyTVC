@@ -260,6 +260,46 @@ class TestFins(unittest.TestCase):
             expected += fin.position.cross(fin.getForce()) * Vector3(0.25, 0.0, 0.0)
         assert_vector_close(self, can.getTorque(), expected)
 
+    def test_spin_can_integrates_rotation_and_rotates_each_fin(self):
+        zero_coefficient = lambda angle, speed, body: 0.0
+        with self.assertRaises(ValueError):
+            SpinCan(
+                Vector3(), zero_coefficient, zero_coefficient, pressure_one_atm,
+                1.0, 1.0, 2, rotationDampingCoefficient=-1.0,
+            )
+        with self.assertRaises(ValueError):
+            SpinCan(
+                Vector3(), zero_coefficient, zero_coefficient, pressure_one_atm,
+                1.0, 1.0, 2, rotationalInertia=0.0,
+            )
+
+        can = SpinCan(
+            Vector3(),
+            zero_coefficient,
+            zero_coefficient,
+            pressure_one_atm,
+            area=1.0,
+            radialDistance=1.0,
+            finCount=2,
+            rotationDampingCoefficient=1.0,
+            rotationalInertia=2.0,
+            initialAbsoluteRate=2.0,
+        )
+        can.update(make_body(), 0.5)
+
+        self.assertAlmostEqual(can.getAbsoluteRate(), 1.5)
+        self.assertAlmostEqual(can.getRelativeRate(), 1.5)
+        self.assertAlmostEqual(can.getRelativeAngle(), 0.875)
+        self.assertAlmostEqual(can.getAerodynamicTorque(), 0.0)
+        self.assertAlmostEqual(can.getBearingTorque(), -2.0)
+        self.assertAlmostEqual(can.getFins()[0].getBodyAngle(), 0.875)
+        self.assertAlmostEqual(can.getFins()[0].position.y, math.cos(0.875))
+        self.assertAlmostEqual(can.getFins()[0].position.z, math.sin(0.875))
+
+        logger = Logger(SimClock())
+        can.logState(logger)
+        self.assertIn("relative_angle", logger.toDict())
+
 
 class TestAirbrakesAndRocketBody(unittest.TestCase):
     def test_airbrake_angle_clip_zero_flow_drag_and_logging(self):
